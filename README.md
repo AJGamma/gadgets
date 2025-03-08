@@ -1,4 +1,5 @@
-## My Userscripts
+## My Gadgets
 ### Content
-- `biliGlobalProgress.js`: Show global progress of Bilibili playlist
+- `userscripts`
+    - `biliGlobalProgress.js`: Show global progress of Bilibili playlist
 
