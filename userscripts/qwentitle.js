@@ -35,6 +35,8 @@
         observer.observe(sidebar, {
             childList: true,
             subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
         });
 
         // 立即尝试更新一次

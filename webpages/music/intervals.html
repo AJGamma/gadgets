@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web 音程听力训练器 (V3)</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f4f4f9;
+            --card-bg: #ffffff;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .control-group {
+            margin-bottom: 1.2rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 1rem;
+        }
+
+        .control-group:last-child {
+            border-bottom: none;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        select, input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            margin-right: 6px;
+            width: auto;
+        }
+
+        .range-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .param-row span {
+            flex-shrink: 0;
+            margin-right: 10px;
+            font-size: 0.95rem;
+        }
+        .param-input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .param-input-group input {
+             width: 80px;
+             text-align: center;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 600;
+        }
+
+        #btn-start { background-color: var(--primary-color); color: white; }
+        #btn-start:hover { background-color: #357abd; }
+        #btn-stop { background-color: #e74c3c; color: white; }
+        #btn-stop:hover { background-color: #c0392b; }
+        #btn-stop:disabled { background-color: #e0e0e0; color: #999; cursor: not-allowed; }
+
+        .status-display {
+            margin-top: 15px;
+            padding: 10px;
+            background: #eef2f7;
+            border-radius: 4px;
+            text-align: center;
+            min-height: 24px;
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        .highlight { color: var(--primary-color); font-weight: bold; }
+        .sub-text { font-size: 0.8rem; color: #777; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎵 随机音程生成器 (V3)</h1>
+
+    <!-- 1. 音程选择 -->
+    <div class="control-group">
+        <label for="interval-select">选择音程</label>
+        <select id="interval-select">
+            <option value="1">小二度 (Minor 2nd)</option>
+            <option value="2">大二度 (Major 2nd)</option>
+            <option value="3">小三度 (Minor 3rd)</option>
+            <option value="4" selected>大三度 (Major 3rd)</option>
+            <option value="5">纯四度 (Perfect 4th)</option>
+            <option value="6">三全音 (Tritone)</option>
+            <option value="7">纯五度 (Perfect 5th)</option>
+            <option value="8">小六度 (Minor 6th)</option>
+            <option value="9">大六度 (Major 6th)</option>
+            <option value="10">小七度 (Minor 7th)</option>
+            <option value="11">大七度 (Major 7th)</option>
+            <option value="12">纯八度 (Octave)</option>
+        </select>
+    </div>
+
+    <!-- 2. 根音范围 -->
+    <div class="control-group">
+        <label>根音范围 (MIDI音高)</label>
+        <div class="range-inputs">
+            <select id="range-min"></select>
+            <span>至</span>
+            <select id="range-max"></select>
+        </div>
+        <small style="color:#666; display:block; margin-top:5px;">C4 (中央C) = 60</small>
+    </div>
+
+    <!-- 3. 播放模式 -->
+    <div class="control-group">
+        <label>播放方向 (可多选)</label>
+        <div class="checkbox-group">
+            <label class="checkbox-label"><input type="checkbox" id="dir-asc" checked> 上行</label>
+            <label class="checkbox-label"><input type="checkbox" id="dir-desc" checked> 下行</label>
+            <label class="checkbox-label"><input type="checkbox" id="dir-harm" checked> 和声</label>
+        </div>
+        <div class="checkbox-group" style="margin-top: 12px; padding-top:10px; border-top:1px dashed #ddd; width:100%;">
+            <label class="checkbox-label" title="勾选后，同一组音会按选中顺序依次播放(如先上行，再下行，还是这俩音)">
+                <input type="checkbox" id="play-in-order" checked> 
+                <strong>顺序播放且音组锁定</strong>
+            </label>
+        </div>
+    </div>
+
+    <!-- 4. 速度与间隔 -->
+    <div class="control-group">
+        <label>参数设置</label>
+        <div style="display:flex; flex-direction:column;">
+            <div class="param-row">
+                <span>单音时长 (速度)</span>
+                <div class="param-input-group"><input type="number" id="note-duration" value="500" min="100" max="2000" step="50"> ms</div>
+            </div>
+             <div class="param-row">
+                <span>音间间隔 (上下行)</span>
+                <div class="param-input-group"><input type="number" id="note-gap" value="0" min="0" max="1000" step="10"> ms</div>
+            </div>
+            <div class="param-row">
+                <span>组间间隔</span>
+                <div class="param-input-group"><input type="number" id="group-gap" value="2.0" min="0.5" max="10" step="0.5"> 秒</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-display" id="status-display">准备就绪</div>
+
+    <div class="btn-container">
+        <button id="btn-start">开始练习</button>
+        <button id="btn-stop" disabled>停止</button>
+    </div>
+</div>
+
+<script>
+    // --- 音频上下文与全局变量 ---
+    let audioCtx;
+    let isPlaying = false;
+    let timeoutId = null;
+    
+    // -- 状态控制 --
+    let directionSequence = []; // 存储用户勾选的模式序列 ['asc', 'desc', 'harm']
+    let directionSequenceIndex = 0; // 当前播放到序列的第几步
+    let currentRootMidi = null; // 当前锁定的根音
+
+    const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    
+    // --- 初始化 UI ---
+    window.onload = function() {
+        populateRangeSelectors();
+    };
+
+    function populateRangeSelectors() {
+        const minSel = document.getElementById('range-min');
+        const maxSel = document.getElementById('range-max');
+        for (let i = 36; i <= 84; i++) { // C2 to C6
+            const octave = Math.floor(i / 12) - 1;
+            const noteName = noteNames[i % 12];
+            const label = `${noteName}${octave} (${i})`;
+            [minSel, maxSel].forEach(sel => sel.add(new Option(label, i)));
+        }
+        minSel.value = 48; // C3
+        maxSel.value = 72; // C5
+    }
+
+    // --- 音频逻辑 ---
+    function midiToFreq(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playTone(freq, startTime, durationMs) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = startTime;
+        const dur = durationMs / 1000;
+        
+        // 增益包络：音量0.8
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.8, now + 0.02); 
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur); 
+
+        osc.start(now);
+        osc.stop(now + dur);
+    }
+
+    // --- 核心业务逻辑 ---
+
+    function startTraining() {
+        if (isPlaying) return;
+        
+        // 构建播放列表
+        directionSequence = [];
+        if (document.getElementById('dir-asc').checked) directionSequence.push('asc');
+        if (document.getElementById('dir-desc').checked) directionSequence.push('desc');
+        if (document.getElementById('dir-harm').checked) directionSequence.push('harm');
+
+        if (directionSequence.length === 0) {
+            alert("请至少选择一种播放方向（上行、下行或和声）。");
+            return;
+        }
+
+        // 重置状态
+        directionSequenceIndex = 0; 
+        currentRootMidi = null; // 确保第一次开始时重新生成
+
+        initAudio();
+        isPlaying = true;
+        updateUIState(true);
+        document.getElementById('status-display').textContent = "训练开始...";
+        
+        scheduleNextGroup(0);
+    }
+
+    function stopTraining() {
+        isPlaying = false;
+        clearTimeout(timeoutId);
+        updateUIState(false);
+        document.getElementById('status-display').textContent = "已停止";
+    }
+
+    function updateUIState(active) {
+        document.getElementById('btn-start').disabled = active;
+        document.getElementById('btn-stop').disabled = !active;
+    }
+
+    function scheduleNextGroup(delayMs) {
+        if (!isPlaying) return;
+        timeoutId = setTimeout(playNextInterval, delayMs);
+    }
+
+    // 生成随机根音的辅助函数
+    function generateRandomRoot() {
+        const minRoot = parseInt(document.getElementById('range-min').value);
+        const maxRoot = parseInt(document.getElementById('range-max').value);
+        const actualMin = Math.min(minRoot, maxRoot);
+        const actualMax = Math.max(minRoot, maxRoot);
+        return Math.floor(Math.random() * (actualMax - actualMin + 1)) + actualMin;
+    }
+
+    function playNextInterval() {
+        if (!isPlaying) return;
+
+        // 1. 获取基础参数
+        const intervalSize = parseInt(document.getElementById('interval-select').value);
+        const noteDuration = parseInt(document.getElementById('note-duration').value);
+        const groupGap = parseFloat(document.getElementById('group-gap').value);
+        const noteGap = parseInt(document.getElementById('note-gap').value); 
+        const playInOrder = document.getElementById('play-in-order').checked; 
+
+        // 2. 确定根音和播放模式
+        let rootMidi;
+        let mode;
+        let isNewGroup = false; // 用于UI显示是否是新的一组
+
+        if (playInOrder) {
+            // --- 顺序播放逻辑 ---
+            
+            // 如果是序列的开始（index为0），或者之前没有根音，则生成新的
+            if (directionSequenceIndex === 0 || currentRootMidi === null) {
+                currentRootMidi = generateRandomRoot();
+                isNewGroup = true;
+            }
+            
+            rootMidi = currentRootMidi; // 使用锁定的根音
+            mode = directionSequence[directionSequenceIndex];
+            
+            // 推进索引，如果到头了就回到0
+            directionSequenceIndex = (directionSequenceIndex + 1) % directionSequence.length;
+            
+        } else {
+            // --- 随机播放逻辑 ---
+            rootMidi = generateRandomRoot();
+            mode = directionSequence[Math.floor(Math.random() * directionSequence.length)];
+            isNewGroup = true;
+        }
+
+        const secondMidi = rootMidi + intervalSize;
+
+        // 3. 播放音频
+        const now = audioCtx.currentTime;
+        const rootFreq = midiToFreq(rootMidi);
+        const secondFreq = midiToFreq(secondMidi);
+
+        let statusText = "";
+        let playTime = 0;
+        
+        const noteDurationSec = noteDuration / 1000;
+        const noteGapSec = noteGap / 1000; 
+
+        if (mode === 'asc') {
+            playTone(rootFreq, now, noteDuration);
+            playTone(secondFreq, now + noteDurationSec + noteGapSec, noteDuration);
+            playTime = (noteDuration * 2) + noteGap;
+            statusText = "上行";
+        } else if (mode === 'desc') {
+            playTone(secondFreq, now, noteDuration);
+            playTone(rootFreq, now + noteDurationSec + noteGapSec, noteDuration);
+            playTime = (noteDuration * 2) + noteGap;
+            statusText = "下行";
+        } else { // harm
+            const harmonicDuration = noteDuration * 1.5;
+            playTone(rootFreq, now, harmonicDuration);
+            playTone(secondFreq, now, harmonicDuration);
+            playTime = harmonicDuration;
+            statusText = "和声";
+        }
+        
+        // 4. 更新 UI
+        const rootName = noteNames[rootMidi % 12] + (Math.floor(rootMidi/12)-1);
+        const rootInfo = `<br><span class="sub-text">根音: ${rootName}</span>`;
+        
+        if (playInOrder) {
+            // 计算这是第几步
+            // 当前刚刚播放完的索引是 (directionSequenceIndex - 1)，因为上面已经+1了
+            // 如果减完是-1 (说明之前是0，现在变成了1)，修正逻辑其实是：
+            // 如果 index 变成了 0，说明刚刚播放的是最后一个。
+            let currentStep = directionSequenceIndex === 0 ? directionSequence.length : directionSequenceIndex;
+            let totalSteps = directionSequence.length;
+            
+            document.getElementById('status-display').innerHTML = 
+                `<span class="highlight">${statusText}</span> (序列 ${currentStep}/${totalSteps})` + rootInfo;
+        } else {
+            document.getElementById('status-display').innerHTML = 
+                `<span class="highlight">${statusText}</span> (随机)` + rootInfo;
+        }
+
+        // 5. 计划下一组
+        // 如果是顺序播放，且还没跑完一轮序列，间隔可以稍微短一点(可选)，
+        // 这里为了简单统一使用 groupGap
+        const totalWait = playTime + (groupGap * 1000);
+        scheduleNextGroup(totalWait);
+    }
+
+    // --- 事件绑定 ---
+    document.getElementById('btn-start').addEventListener('click', startTraining);
+    document.getElementById('btn-stop').addEventListener('click', stopTraining);
+
+</script>
+
+</body>
+</html>

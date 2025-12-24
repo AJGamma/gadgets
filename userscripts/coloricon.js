@@ -17,11 +17,23 @@
     return hash;
   }
 
-  function hashToColor(str) {
-    const hash = hashString((str || "default").trim());
-    const h = hash % 360;
-    return `hsl(${h}, 60%, 60%)`;
-  }
+    function fnv1a(str) {
+      let hash = 0x811c9dc5; // FNV offset basis for 32-bit
+      for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193); // FNV prime: 16777619
+      }
+      return hash >>> 0; // 转为无符号32位整数
+    }
+
+    function hashToColor(str) {
+      const hash = fnv1a((str || "default").trim());
+      const h = hash % 360; // HSL 规范中 H ∈ [0, 360)
+      const s = (hash % 11) * 3 + 40;
+      const l = (hash % 5) * 10 + 40;
+      return `hsl(${h}, ${s}%, ${l}%)`;
+    }
+
 
   function generateQwenFavicon(color) {
     const svg = `

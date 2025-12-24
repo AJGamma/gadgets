@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web 和弦听力/色彩训练器</title>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #a29bfe;
+            --bg-color: #f8f9fd;
+            --card-bg: #ffffff;
+            --text-color: #2d3436;
+            --border-color: #dfe6e9;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 650px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-top: 0;
+            font-size: 1.8rem;
+        }
+
+        /* 模块通用样式 */
+        .section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .section-title {
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #555;
+        }
+
+        /* 网格布局 */
+        .grid-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-size: 0.95rem;
+            user-select: none;
+        }
+
+        input[type="checkbox"] {
+            accent-color: var(--primary-color);
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+        }
+
+        input[type="number"], input[type="text"], select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 参数行 */
+        .params-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .param-item {
+            flex: 1;
+            min-width: 120px;
+        }
+        .param-label {
+            display: block;
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        /* 状态显示 */
+        .status-box {
+            background: #eef2f7;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            min-height: 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .chord-name {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .chord-details {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* 按钮 */
+        .btn-group {
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-start { background-color: var(--primary-color); color: white; }
+        .btn-start:hover { background-color: #5649c0; }
+        .btn-stop { background-color: #ff7675; color: white; }
+        .btn-stop:hover { background-color: #d63031; }
+        .btn-stop:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .helper-text { font-size: 0.8rem; color: #888; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎹 和弦听力训练器</h1>
+
+    <!-- 1. 和弦选择 -->
+    <div class="section">
+        <div class="section-title">
+            选择和弦类型 (多选)
+            <button onclick="selectAllChords(true)" style="font-size:0.8rem; padding:4px 8px; width:auto; flex:none; background:#eee; color:#333;">全选</button>
+        </div>
+        <div class="grid-checkboxes" id="chord-list">
+            <!-- JS 生成 -->
+        </div>
+        <div style="margin-top: 15px;">
+            <label style="font-weight:600; margin-bottom:5px;">自定义和弦 (音程半音数，空格分隔)</label>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="use-custom-chord">
+                <input type="text" id="custom-chord-intervals" value="0 4 7 11 14" placeholder="例如大九和弦: 0 4 7 11 14">
+            </div>
+            <div class="helper-text">勾选后将包含自定义和弦进入随机池。0=根音, 4=大三度, 7=纯五度等。</div>
+        </div>
+    </div>
+
+    <!-- 2. 排列与范围设置 -->
+    <div class="section">
+        <div class="section-title">排列 (Voicing) 与 范围</div>
+        <div class="params-row">
+            <div class="param-item">
+                <span class="param-label">根音范围</span>
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <select id="range-min"></select>
+                    <span>-</span>
+                    <select id="range-max"></select>
+                </div>
+            </div>
+            <div class="param-item">
+                <span class="param-label">音数上限</span>
+                <input type="number" id="max-notes" value="5" min="3" max="10">
+            </div>
+        </div>
+        <div class="grid-checkboxes" style="margin-top:10px;">
+            <label><input type="checkbox" id="allow-inversion" checked> 允许转位 (Inversions)</label>
+            <label><input type="checkbox" id="allow-doubling"> 允许同级音重复 (Doubling)</label>
+        </div>
+        <div class="helper-text">
+            * <b>转位</b>：随机改变低音位置。<br>
+            * <b>重复</b>：允许在不同八度增加和弦内音，使织体更丰富。
+        </div>
+    </div>
+
+    <!-- 3. 演奏模式 -->
+    <div class="section">
+        <div class="section-title">演奏模式 (多选，播放时随机)</div>
+        <div class="grid-checkboxes">
+            <label><input type="checkbox" name="playmode" value="up" checked> 上行琶音 (Arp Up)</label>
+            <label><input type="checkbox" name="playmode" value="down"> 下行琶音 (Arp Down)</label>
+            <label><input type="checkbox" name="playmode" value="harmonic" checked> 柱式和弦 (Harmonic)</label>
+        </div>
+    </div>
+
+    <!-- 4. 速度控制 -->
+    <div class="section" style="border-bottom:none;">
+        <div class="section-title">速度设置</div>
+        <div class="params-row">
+            <div class="param-item">
+                <span class="param-label">琶音单音时长 (ms)</span>
+                <input type="number" id="note-speed" value="150" min="50" max="1000" step="10">
+            </div>
+            <div class="param-item">
+                <span class="param-label">和弦保持时长 (ms)</span>
+                <input type="number" id="chord-sustain" value="1200" min="500" max="5000" step="100">
+            </div>
+            <div class="param-item">
+                <span class="param-label">组间间隔 (秒)</span>
+                <input type="number" id="group-gap" value="2" min="0.5" max="10" step="0.5">
+            </div>
+        </div>
+    </div>
+
+    <!-- 状态显示 -->
+    <div class="status-box" id="status-box">
+        <div style="color:#999;">点击开始进行训练</div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-start" id="btn-start">开始训练</button>
+        <button class="btn-stop" id="btn-stop" disabled>停止</button>
+    </div>
+</div>
+
+<script>
+    // --- 数据定义 ---
+    const CHORD_TYPES = [
+        { id: 'maj', name: '大三和弦 (Major)', intervals: [0, 4, 7] },
+        { id: 'min', name: '小三和弦 (Minor)', intervals: [0, 3, 7] },
+        { id: 'aug', name: '增三和弦 (Aug)', intervals: [0, 4, 8] },
+        { id: 'dim', name: '减三和弦 (Dim)', intervals: [0, 3, 6] },
+        { id: 'sus4', name: '挂四和弦 (Sus4)', intervals: [0, 5, 7] },
+        { id: 'maj7', name: '大七和弦 (Maj7)', intervals: [0, 4, 7, 11] },
+        { id: 'min7', name: '小七和弦 (Min7)', intervals: [0, 3, 7, 10] },
+        { id: 'dom7', name: '属七和弦 (Dom7)', intervals: [0, 4, 7, 10] },
+        { id: 'm7b5', name: '半减七 (Half Dim)', intervals: [0, 3, 6, 10] },
+        { id: 'dim7', name: '减七和弦 (Dim7)', intervals: [0, 3, 6, 9] },
+        { id: 'maj9', name: '大九和弦 (Maj9)', intervals: [0, 4, 7, 11, 14] },
+        { id: 'min9', name: '小九和弦 (Min9)', intervals: [0, 3, 7, 10, 14] },
+    ];
+
+    const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let audioCtx;
+    let isPlaying = false;
+    let timeoutIds = []; // 存储所有定时器ID以便停止
+    let activeOscillators = []; // 存储所有振荡器以便停止
+
+    // --- 初始化 UI ---
+    window.onload = () => {
+        initChordCheckboxes();
+        initRangeSelectors();
+    };
+
+    function initChordCheckboxes() {
+        const container = document.getElementById('chord-list');
+        CHORD_TYPES.forEach(chord => {
+            const div = document.createElement('div');
+            // 默认选中 大三、小三
+            const checked = ['maj', 'min', 'maj7'].includes(chord.id) ? 'checked' : '';
+            div.innerHTML = `<label><input type="checkbox" name="chord-type" value="${chord.id}" ${checked}> ${chord.name}</label>`;
+            container.appendChild(div);
+        });
+    }
+
+    function selectAllChords(select) {
+        document.querySelectorAll('input[name="chord-type"]').forEach(cb => cb.checked = select);
+    }
+
+    function initRangeSelectors() {
+        const minSel = document.getElementById('range-min');
+        const maxSel = document.getElementById('range-max');
+        for (let i = 36; i <= 72; i++) { // C2 - C5
+            const label = getNoteName(i);
+            minSel.add(new Option(label, i));
+            maxSel.add(new Option(label, i));
+        }
+        minSel.value = 48; // C3
+        maxSel.value = 60; // C4
+    }
+
+    // --- 音频引擎 ---
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function midiToFreq(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    function getNoteName(midi) {
+        return noteNames[midi % 12] + (Math.floor(midi/12)-1);
+    }
+
+    // 播放单个音
+    function playTone(midi, startTime, durationMs, volume = 0.3) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle'; // 三角波适合和弦，比正弦波丰富
+        osc.frequency.value = midiToFreq(midi);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = startTime;
+        const dur = durationMs / 1000;
+
+        // 包络
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(volume, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+        osc.start(now);
+        osc.stop(now + dur + 0.1);
+
+        activeOscillators.push(osc);
+        // 清理引用
+        osc.onended = () => {
+            const idx = activeOscillators.indexOf(osc);
+            if (idx > -1) activeOscillators.splice(idx, 1);
+        };
+    }
+
+    // --- 核心逻辑 ---
+
+    function startTraining() {
+        if (isPlaying) return;
+
+        // 验证选择
+        const selectedChords = Array.from(document.querySelectorAll('input[name="chord-type"]:checked')).map(cb => cb.value);
+        const useCustom = document.getElementById('use-custom-chord').checked;
+        const playModes = Array.from(document.querySelectorAll('input[name="playmode"]:checked')).map(cb => cb.value);
+
+        if (selectedChords.length === 0 && !useCustom) {
+            alert("请至少选择一种和弦类型！");
+            return;
+        }
+        if (playModes.length === 0) {
+            alert("请至少选择一种演奏模式！");
+            return;
+        }
+
+        initAudio();
+        isPlaying = true;
+        updateUIState(true);
+        scheduleNextChord(0);
+    }
+
+    function stopTraining() {
+        isPlaying = false;
+        // 清除所有定时器
+        timeoutIds.forEach(id => clearTimeout(id));
+        timeoutIds = [];
+        // 停止所有发声
+        activeOscillators.forEach(osc => {
+            try { osc.stop(); } catch(e){}
+        });
+        activeOscillators = [];
+        
+        updateUIState(false);
+        document.getElementById('status-box').innerHTML = '<div style="color:#999;">已停止</div>';
+    }
+
+    function updateUIState(active) {
+        document.getElementById('btn-start').disabled = active;
+        document.getElementById('btn-stop').disabled = !active;
+    }
+
+    // 获取当前合法的和弦定义列表
+    function getAvailableChords() {
+        let pool = [];
+        const checkedTypes = Array.from(document.querySelectorAll('input[name="chord-type"]:checked')).map(cb => cb.value);
+        
+        CHORD_TYPES.forEach(c => {
+            if (checkedTypes.includes(c.id)) pool.push(c);
+        });
+
+        if (document.getElementById('use-custom-chord').checked) {
+            const raw = document.getElementById('custom-chord-intervals').value.trim();
+            const ints = raw.split(/\s+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+            if (ints.length > 0) {
+                pool.push({ name: '自定义和弦', intervals: ints });
+            }
+        }
+        return pool;
+    }
+
+    // 生成具体的音符数组 (Voicing)
+    function generateVoicing(rootMidi, intervals) {
+        let notes = intervals.map(i => rootMidi + i);
+        
+        const allowInversion = document.getElementById('allow-inversion').checked;
+        const allowDoubling = document.getElementById('allow-doubling').checked;
+        const maxNotes = parseInt(document.getElementById('max-notes').value);
+
+        // 1. 同级音重复 (Doubling)
+        // 策略：随机挑选几个现有的音，向上或向下八度复制
+        if (allowDoubling) {
+            const doublingChance = 0.6;
+            // 尝试增加 1-2 个音
+            let attempts = 0;
+            while (notes.length < maxNotes && attempts < 3) {
+                if (Math.random() < doublingChance) {
+                    const srcNote = notes[Math.floor(Math.random() * notes.length)];
+                    const newNote = srcNote + 12; // 向上八度
+                    if (!notes.includes(newNote) && newNote < 96) { // 限制不过高
+                        notes.push(newNote);
+                    }
+                }
+                attempts++;
+            }
+        }
+
+        // 2. 转位 (Inversion)
+        // 简单的转位逻辑：随机选择低音是否向上八度翻转
+        if (allowInversion) {
+            // 50% 概率进行某种转位操作
+            if (Math.random() > 0.4) {
+                // 方式：将最低的音 +12，重复此过程 0-2 次
+                const inversions = Math.floor(Math.random() * 3); // 0, 1, 2次转位
+                for (let k = 0; k < inversions; k++) {
+                    notes.sort((a,b) => a-b); // 确保有序
+                    const low = notes.shift(); // 拿出最低音
+                    notes.push(low + 12); // 放到高八度
+                }
+            }
+        }
+
+        // 3. 截断与排序
+        notes = notes.slice(0, maxNotes);
+        notes.sort((a,b) => a-b);
+        return notes;
+    }
+
+    function scheduleNextChord(delayMs) {
+        if (!isPlaying) return;
+        const tid = setTimeout(playChordEvent, delayMs);
+        timeoutIds.push(tid);
+    }
+
+    function playChordEvent() {
+        if (!isPlaying) return;
+
+        // 1. 参数获取
+        const availableChords = getAvailableChords();
+        if (availableChords.length === 0) { stopTraining(); return; }
+
+        const minRoot = parseInt(document.getElementById('range-min').value);
+        const maxRoot = parseInt(document.getElementById('range-max').value);
+        const playModes = Array.from(document.querySelectorAll('input[name="playmode"]:checked')).map(cb => cb.value);
+
+        const noteSpeed = parseInt(document.getElementById('note-speed').value);
+        const chordSustain = parseInt(document.getElementById('chord-sustain').value);
+        const groupGap = parseFloat(document.getElementById('group-gap').value) * 1000;
+
+        // 2. 随机生成
+        const targetChord = availableChords[Math.floor(Math.random() * availableChords.length)];
+        const rootMidi = Math.floor(Math.random() * (maxRoot - minRoot + 1)) + minRoot;
+        const mode = playModes[Math.floor(Math.random() * playModes.length)];
+
+        // 3. 生成 Voicing
+        const notes = generateVoicing(rootMidi, targetChord.intervals);
+
+        // 4. 播放逻辑
+        const now = audioCtx.currentTime;
+        let totalPlayTime = 0;
+        let displayMode = "";
+
+        if (mode === 'harmonic') {
+            // 柱式和弦：同时播放
+            // 注意：多音并发音量要减小
+            const vol = 0.6 / notes.length; 
+            notes.forEach(n => playTone(n, now, chordSustain, vol));
+            totalPlayTime = chordSustain;
+            displayMode = "柱式和弦";
+        } else if (mode === 'up') {
+            // 上行
+            notes.forEach((n, idx) => {
+                playTone(n, now + idx * (noteSpeed/1000), noteSpeed + 200, 0.4);
+            });
+            totalPlayTime = notes.length * noteSpeed + 200;
+            displayMode = "上行琶音";
+        } else if (mode === 'down') {
+            // 下行
+            const revNotes = [...notes].reverse();
+            revNotes.forEach((n, idx) => {
+                playTone(n, now + idx * (noteSpeed/1000), noteSpeed + 200, 0.4);
+            });
+            totalPlayTime = notes.length * noteSpeed + 200;
+            displayMode = "下行琶音";
+        }
+
+        // 5. 更新 UI
+        const rootName = getNoteName(rootMidi);
+        const notesText = notes.map(n => getNoteName(n)).join("-");
+        
+        document.getElementById('status-box').innerHTML = `
+            <div class="chord-name">${rootName} ${targetChord.name}</div>
+            <div class="chord-details">
+                模式: ${displayMode} | 音符: [${notesText}]
+            </div>
+        `;
+
+        // 6. 下一组
+        scheduleNextChord(totalPlayTime + groupGap);
+    }
+
+    // 事件绑定
+    document.getElementById('btn-start').addEventListener('click', startTraining);
+    document.getElementById('btn-stop').addEventListener('click', stopTraining);
+
+</script>
+</body>
+</html>
