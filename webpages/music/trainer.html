@@ -242,6 +242,7 @@
             <div class="flex-row" style="margin-top:15px;">
                 <span>速度(ms):</span> <input type="number" id="speed-loop" value="400" step="50" style="width:60px">
                 <span>间隔(s):</span> <input type="number" id="gap-loop" value="0.5" step="0.5" style="width:60px">
+                <span>重复次数:</span> <input type="number" id="repeat-loop-int" value="1" min="1" style="width:50px">
             </div>
         </div>
     </div>
@@ -252,6 +253,24 @@
             <div class="section-title">选择和弦 (多选) <button onclick="setChecks('chord-list-loop', true)">全选</button><button onclick="toggleChecks('chord-list-loop')">反选</button></div>
             <div class="grid-options" id="chord-list-loop"></div>
         </div>
+        
+        <!-- 新增：自定义和弦添加区域 -->
+        <div class="section" style="background: #fdfdfd; border: 1px dashed #ccc; padding: 10px; border-radius: 6px;">
+            <div class="section-title" style="font-size: 1rem;">添加自定义和弦</div>
+             <div class="flex-row" style="align-items: flex-end;">
+                <div>
+                    <div style="font-size:0.8rem;color:#666;margin-bottom:4px;">名称 (如: MyMaj9)</div>
+                    <input type="text" id="new-chord-name" style="width:110px">
+                </div>
+                <div>
+                    <div style="font-size:0.8rem;color:#666;margin-bottom:4px;">音程 (半音, 逗号分隔)</div>
+                    <input type="text" id="new-chord-int" placeholder="0,4,7,11" style="width:140px">
+                </div>
+                <button onclick="addCustomChord()" style="padding:6px 15px; background:var(--highlight); color:white; border:none; border-radius:4px; cursor:pointer;">添加</button>
+            </div>
+            <div style="margin-top:5px; font-size:0.8rem; color:#999;">注：0代表根音。例如大三和弦为 0,4,7</div>
+        </div>
+
         <div class="section">
             <div class="section-title">播放设置</div>
             <div class="flex-row">
@@ -270,6 +289,7 @@
             <div class="flex-row" style="margin-top:15px;">
                 <span>琶音速度:</span> <input type="number" id="arp-speed-loop" value="150" style="width:60px">
                 <span>间隔(s):</span> <input type="number" id="chord-gap-loop" value="0.5" step="0.5" style="width:60px">
+                <span>重复次数:</span> <input type="number" id="repeat-loop-chord" value="1" min="1" style="width:50px">
             </div>
             
             <div class="section-title" style="margin-top:20px;">高级 Voicing 设置</div>
@@ -299,8 +319,9 @@
                      <option value="random" selected>随机混合</option>
                  </select>
             </div>
-             <div class="flex-row" style="margin-top:10px;">
+            <div class="flex-row" style="margin-top:10px;">
                 <span>间隔(s):</span> <input type="number" id="gap-quiz-int" value="0.5" step="0.5" style="width:60px">
+                <span>播放次数:</span> <input type="number" id="repeat-quiz-int" value="1" min="1" style="width:50px">
                 <small style="color:#666; margin-left:10px;">(声音播报完后的等待时间)</small>
             </div>
         </div>
@@ -318,8 +339,9 @@
                  <label><input type="checkbox" id="speak-root-chord"> 播报根音 (如: "D 小七")</label>
                  <label><input type="checkbox" id="inv-quiz"> 包含转位</label>
             </div>
-             <div class="flex-row" style="margin-top:10px;">
+            <div class="flex-row" style="margin-top:10px;">
                 <span>间隔(s):</span> <input type="number" id="gap-quiz-chord" value="0.5" step="0.5" style="width:60px">
+                <span>播放次数:</span> <input type="number" id="repeat-quiz-chord" value="1" min="1" style="width:50px">
             </div>
         </div>
     </div>
@@ -338,6 +360,7 @@
             <div class="flex-row">
                 <span>音长(ms):</span> <input type="number" id="note-dur-quiz" value="800" style="width:60px">
                 <span>间隔(s):</span> <input type="number" id="gap-quiz-note" value="0.5" step="0.5" style="width:60px">
+                <span>播放次数:</span> <input type="number" id="repeat-quiz-note" value="1" min="1" style="width:50px">
             </div>
         </div>
     </div>
@@ -372,7 +395,7 @@
         { semitones: 24, name: "十五度 (P15)" }
     ];
 
-const CHORDS = [
+const DEFAULT_CHORDS = [
   { id: 'maj',      name: '大三',                 int: [0, 4, 7] },
   { id: 'min',      name: '小三',                 int: [0, 3, 7] },
   { id: 'aug',      name: '增三',             int: [0, 4, 8] },
@@ -399,20 +422,33 @@ const CHORDS = [
 ];
 
     // --- 状态变量 ---
+    let customChords = []; // 新增：自定义和弦列表
     let audioCtx;
     let isPlaying = false;
     let currentTab = 'interval-loop';
     let timeoutId = null;
     let activeOscs = [];
+    
+    // 语音支持
+    let availableVoices = [];
+    function loadVoices() {
+        if(!window.speechSynthesis) return;
+        availableVoices = window.speechSynthesis.getVoices();
+    }
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        // 尝试立即加载
+        loadVoices();
+    }
 
     // **新增：顺序播放状态管理**
     let sequenceState = {
         active: false,
         queue: [],      // 待播放的模式列表 ['up', 'down', 'harm']
-        index: 0,       // 当前播放到第几个
-        data: null      // 锁定的音符数据 { root: 60, notes: [60, 64, 67], name: "C Maj" }
+        index: 0,       // 当前播放到第几个这里的
+        lastData: null
     };
-    
+
     // --- 初始化 ---
     window.onload = function() {
         initUI();
@@ -453,19 +489,216 @@ const CHORDS = [
             });
         });
 
-        // 4. 填充和弦列表
-        ['chord-list-loop', 'chord-list-quiz'].forEach(id => {
-            const container = document.getElementById(id);
-            CHORDS.forEach(c => {
-                const checked = ['maj','min'].includes(c.id) ? 'checked' : '';
-                const html = `<label><input type="checkbox" value="${c.id}" ${checked}> ${c.name} (${c.id})</label>`;
-                container.innerHTML += html;
-            });
-        });
+        // 4. 填充和弦列表 (已移至 renderChordSelectors)
+        renderChordSelectors();
 
         // 绑定按钮
         document.getElementById('btn-start').onclick = start;
         document.getElementById('btn-stop').onclick = stop;
+
+        // 5. 加载上次保存的设置
+        loadSettings();
+        
+        // 6. 自动保存 (页面关闭或刷新前)
+        window.addEventListener('beforeunload', saveSettings);
+    }
+
+    // --- 数据持久化 (新增) ---
+    const STORAGE_KEY = 'music_trainer_v2_settings';
+
+    function saveSettings() {
+        const settings = {};
+
+        // 1. 保存简单的 Input/Select/Checkbox (通过 ID)
+        const ids = [
+            'range-min', 'range-max', 
+            'speed-loop', 'gap-loop', 'seq-mode-int', 'repeat-loop-int',
+            'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'repeat-loop-chord',
+            'speak-root-int', 'quiz-int-mode', 'gap-quiz-int', 'repeat-quiz-int',
+            'speak-root-chord', 'inv-quiz', 'gap-quiz-chord', 'repeat-quiz-chord',
+            'note-dur-quiz', 'gap-quiz-note', 'repeat-quiz-note'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) {
+                settings[id] = (el.type === 'checkbox') ? el.checked : el.value;
+            }
+        });
+
+        // 2. 保存 Tab
+        settings.currentTab = currentTab;
+
+        // 3. 保存根音过滤器 (Note Selector)
+        const rootNotes = [];
+        document.querySelectorAll('#root-note-filter .note-check').forEach(el => {
+            if(el.classList.contains('checked')) {
+                rootNotes.push(parseInt(el.dataset.val));
+            }
+        });
+        settings.rootNotes = rootNotes;
+
+        // 4.5 保存自定义和弦
+        settings.customChords = customChords;
+
+        // 4. 保存各种列表复选框
+        settings.intListLoop = getCheckedValues('#int-list-loop input');
+        settings.playDirLoop = getCheckedValues('.play-dir-loop');
+        settings.chordListLoop = getCheckedValues('#chord-list-loop input');
+        settings.chordDirLoop = getCheckedValues('.chord-dir-loop');
+        settings.intListQuiz = getCheckedValues('#int-list-quiz input');
+        settings.chordListQuiz = getCheckedValues('#chord-list-quiz input');
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    }
+
+    function getCheckedValues(selector) {
+        return Array.from(document.querySelectorAll(selector))
+            .filter(el => el.checked)
+            .map(el => el.value);
+    }
+
+    function loadSettings() {
+        const json = localStorage.getItem(STORAGE_KEY);
+        if(!json) return;
+        
+        let settings;
+        try { settings = JSON.parse(json); } catch(e) { return; }
+
+        // 恢复简单 ID
+        for(let key in settings) {
+            // 跳过复杂对象
+            if(['currentTab', 'rootNotes', 'intListLoop', 'playDirLoop', 'chordListLoop', 'chordDirLoop', 'intListQuiz', 'chordListQuiz', 'customChords'].includes(key)) continue;
+            
+            const el = document.getElementById(key);
+            if(el) {
+                if(el.type === 'checkbox') el.checked = settings[key];
+                else el.value = settings[key];
+            }
+        }
+
+        // 0. 恢复自定义和弦 (必须在渲染列表之前)
+        if(settings.customChords && Array.isArray(settings.customChords)) {
+            customChords = settings.customChords;
+        }
+        
+        // 重新渲染和弦列表以包含自定义和弦
+        renderChordSelectors();
+
+        // 恢复 Tab
+        if(settings.currentTab) {
+             const tabBtn = document.querySelector(`button[onclick="switchTab('${settings.currentTab}')"]`);
+             if(tabBtn) tabBtn.click();
+        }
+
+        // 恢复根音
+        if(settings.rootNotes && Array.isArray(settings.rootNotes)) {
+            document.querySelectorAll('#root-note-filter .note-check').forEach(el => {
+                const val = parseInt(el.dataset.val);
+                if(settings.rootNotes.includes(val)) el.classList.add('checked');
+                else el.classList.remove('checked');
+            });
+        }
+
+        // 恢复列表复选框
+        restoreChecks('#int-list-loop input', settings.intListLoop);
+        restoreChecks('.play-dir-loop', settings.playDirLoop);
+        restoreChecks('#chord-list-loop input', settings.chordListLoop);
+        restoreChecks('.chord-dir-loop', settings.chordDirLoop);
+        restoreChecks('#int-list-quiz input', settings.intListQuiz);
+        restoreChecks('#chord-list-quiz input', settings.chordListQuiz);
+    }
+
+    function restoreChecks(selector, values) {
+        if(!values || !Array.isArray(values)) return;
+        document.querySelectorAll(selector).forEach(el => {
+            el.checked = values.includes(el.value);
+        });
+    }
+
+    function getAllChords() {
+        return [...DEFAULT_CHORDS, ...customChords];
+    }
+
+    function renderChordSelectors() {
+        const all = getAllChords();
+        ['chord-list-loop', 'chord-list-quiz'].forEach(id => {
+            const container = document.getElementById(id);
+            // 备份当前选中状态
+            const oldCheckedValues = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+            
+            container.innerHTML = '';
+            
+            all.forEach(c => {
+                let isChecked = false;
+                if (oldCheckedValues.length > 0) {
+                    isChecked = oldCheckedValues.includes(c.id);
+                } else {
+                    // 初始默认选中 maj 和 min
+                    isChecked = ['maj','min'].includes(c.id);
+                }
+                
+                let labelHtml = `${c.name}`;
+                if (c.isCustom) {
+                    // 自定义和弦显示删除按钮
+                    labelHtml += ` <span style="color:red; font-weight:bold; margin-left:5px; cursor:pointer;" title="删除" onclick="removeCustomChord('${c.id}', event)">×</span>`;
+                } else {
+                    labelHtml += ` (${c.id})`;
+                }
+
+                const div = document.createElement('div');
+                div.innerHTML = `<label style="display:inline-flex; align-items:center; width:100%;">
+                    <input type="checkbox" value="${c.id}" ${isChecked ? 'checked' : ''}> 
+                    <span style="flex:1">${labelHtml}</span>
+                </label>`;
+                container.appendChild(div.firstElementChild);
+            });
+        });
+    }
+
+    function addCustomChord() {
+        const nameInput = document.getElementById('new-chord-name');
+        const intInput = document.getElementById('new-chord-int');
+        
+        const name = nameInput.value.trim();
+        const intStr = intInput.value.trim();
+        
+        if(!name || !intStr) { alert("请输入名称和音程"); return; }
+        
+        // 解析音程
+        let intervals = [];
+        try {
+            intervals = intStr.split(/[,，\s]+/).map(s => parseInt(s));
+            if(intervals.some(isNaN)) throw new Error();
+        } catch(e) {
+            alert("音程格式错误，请使用数字和逗号，如: 0,4,7");
+            return;
+        }
+        
+        // 创建 ID
+        const id = 'cust_' + Date.now();
+        
+        customChords.push({
+            id: id,
+            name: name,
+            int: intervals,
+            isCustom: true
+        });
+        
+        nameInput.value = '';
+        intInput.value = '';
+        
+        renderChordSelectors();
+        saveSettings(); // 保存
+    }
+
+    window.removeCustomChord = function(id, event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if(!confirm("确定删除这个自定义和弦吗？")) return;
+        
+        customChords = customChords.filter(c => c.id !== id);
+        renderChordSelectors();
+        saveSettings();
     }
 
     // --- Tab 切换 ---
@@ -533,8 +766,17 @@ const CHORDS = [
     function speak(text) {
         if(!window.speechSynthesis) return;
         window.speechSynthesis.cancel();
+        
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'zh-CN';
+        
+        // 尝试加载语音（如果尚未加载）
+        if(availableVoices.length === 0) loadVoices();
+        
+        // 查找中文语音
+        const zhVoice = availableVoices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
+        if (zhVoice) u.voice = zhVoice;
+        
         u.rate = 1.0;
         window.speechSynthesis.speak(u);
     }
@@ -548,7 +790,8 @@ const CHORDS = [
         
         // 重置顺序播放状态
         sequenceState = { active: false, queue: [], index: 0, data: null };
-        
+        loopRepeatState = { count: 0, max: 1, lastData: null };
+
         document.getElementById('btn-start').disabled = true;
         document.getElementById('btn-stop').disabled = false;
         
@@ -602,54 +845,63 @@ const CHORDS = [
 
     // --- 逻辑 1: 音程循环 (修改版) ---
     function logicIntervalLoop() {
-        // 1. 检查是否开启了顺序播放模式
-        const isSeqMode = document.getElementById('seq-mode-int').checked;
-
-        // 变量准备
-        let root, semitones, mode;
-        let intName, note2;
-        let isNewGroup = false;
-
-        // 2. 状态判断
-        // 如果开启了顺序模式，且队列还有剩余
-        if (isSeqMode && sequenceState.queue.length > 0 && sequenceState.index < sequenceState.queue.length) {
-            // -- 继续播放序列 --
-            root = sequenceState.data.root;
-            semitones = sequenceState.data.semitones;
-            intName = sequenceState.data.name;
-            mode = sequenceState.queue[sequenceState.index];
-            sequenceState.index++; // 步进
-            note2 = root + semitones;
+        // 0. 检查是否处于重复状态
+        let root, semitones, mode, intName, note2;
+        
+        // 如果正在重复中
+        if (loopRepeatState.count < loopRepeatState.max && loopRepeatState.lastData) {
+            ({ root, semitones, mode, intName, note2 } = loopRepeatState.lastData);
+            loopRepeatState.count++;
         } else {
-            // -- 新的一轮 (无论是随机模式，还是序列模式结束了) --
-            isNewGroup = true;
-            root = getValidRoot();
-            if(root === null) { alert("无有效根音"); stop(); return; }
+            // 需要生成新的 (或推进序列)
+            
+            // 1. 检查是否开启了顺序播放模式
+            const isSeqMode = document.getElementById('seq-mode-int').checked;
+            let isNewGroup = false;
 
-            const checkedInts = Array.from(document.querySelectorAll('#int-list-loop input:checked'));
-            if(checkedInts.length === 0) { alert("请选择音程"); stop(); return; }
-            semitones = parseInt(checkedInts[Math.floor(Math.random()*checkedInts.length)].value);
-            intName = INTERVALS.find(i => i.semitones === semitones).name;
-            note2 = root + semitones;
-
-            // 获取用户选择的方向
-            const dirs = Array.from(document.querySelectorAll('.play-dir-loop:checked')).map(c=>c.value);
-            if(dirs.length === 0) { alert("请选择方向"); stop(); return; }
-
-            if (isSeqMode) {
-                // 初始化序列
-                sequenceState.queue = dirs; // 比如 ['asc', 'desc']
-                sequenceState.index = 0;
-                sequenceState.data = { root, semitones, name: intName };
-                
-                // 取出第一个
+            // 2. 状态判断
+            // 如果开启了顺序模式，且队列还有剩余
+            if (isSeqMode && sequenceState.queue.length > 0 && sequenceState.index < sequenceState.queue.length) {
+                // -- 继续播放序列 --
+                root = sequenceState.data.root;
+                semitones = sequenceState.data.semitones;
+                intName = sequenceState.data.name;
                 mode = sequenceState.queue[sequenceState.index];
-                sequenceState.index++;
+                sequenceState.index++; // 步进
+                note2 = root + semitones;
             } else {
-                // 纯随机
-                sequenceState.queue = []; // 清空确保安全
-                mode = dirs[Math.floor(Math.random()*dirs.length)];
+                // -- 新的一轮 --
+                isNewGroup = true;
+                root = getValidRoot();
+                if(root === null) { alert("无有效根音"); stop(); return; }
+
+                const checkedInts = Array.from(document.querySelectorAll('#int-list-loop input:checked'));
+                if(checkedInts.length === 0) { alert("请选择音程"); stop(); return; }
+                semitones = parseInt(checkedInts[Math.floor(Math.random()*checkedInts.length)].value);
+                intName = INTERVALS.find(i => i.semitones === semitones).name;
+                note2 = root + semitones;
+
+                const dirs = Array.from(document.querySelectorAll('.play-dir-loop:checked')).map(c=>c.value);
+                if(dirs.length === 0) { alert("请选择方向"); stop(); return; }
+
+                if (isSeqMode) {
+                    sequenceState.queue = dirs;
+                    sequenceState.index = 0;
+                    sequenceState.data = { root, semitones, name: intName };
+                    
+                    mode = sequenceState.queue[sequenceState.index];
+                    sequenceState.index++;
+                } else {
+                    sequenceState.queue = [];
+                    mode = dirs[Math.floor(Math.random()*dirs.length)];
+                }
             }
+            
+            // 初始化重复状态
+            const repeatInput = parseInt(document.getElementById('repeat-loop-int').value) || 1;
+            loopRepeatState.max = repeatInput;
+            loopRepeatState.count = 1; // 第一次播放
+            loopRepeatState.lastData = { root, semitones, mode, intName, note2 };
         }
         
         // 3. 播放逻辑 (保持不变)
@@ -673,68 +925,86 @@ const CHORDS = [
         }
 
         // 4. 显示更新
+        const isSeqMode = document.getElementById('seq-mode-int').checked;
         let seqTag = "";
         if (isSeqMode) {
             seqTag = `<span class="seq-tag">序列 ${sequenceState.index}/${sequenceState.queue.length}</span>`;
         }
-        updateStatus(`${midiToName(root)} -> ${intName} ${seqTag}`, `模式: ${mode}`);
+        
+        let repeatTag = "";
+        if (loopRepeatState.max > 1) {
+            repeatTag = `<span class="seq-tag" style="background:#6c5ce7">重复 ${loopRepeatState.count}/${loopRepeatState.max}</span>`;
+        }
+
+        updateStatus(`${midiToName(root)} -> ${intName} ${seqTag} ${repeatTag}`, `模式: ${mode}`);
         
         nextRound(dur + gap);
     }
 
     // --- 逻辑 2: 和弦循环 (修改版) ---
     function logicChordLoop() {
-        const isSeqMode = document.getElementById('seq-mode-chord').checked;
-
         let root, chordObj, notes, mode;
         
-        // 判断是继续播放序列还是生成新的
-        if (isSeqMode && sequenceState.queue.length > 0 && sequenceState.index < sequenceState.queue.length) {
-            // 继续序列：复用之前的数据
-            root = sequenceState.data.root;
-            chordObj = sequenceState.data.chordObj;
-            notes = sequenceState.data.notes; // 复用 voicing
-            mode = sequenceState.queue[sequenceState.index];
-            sequenceState.index++;
+        if (loopRepeatState.count < loopRepeatState.max && loopRepeatState.lastData) {
+             ({ root, chordObj, notes, mode } = loopRepeatState.lastData);
+             loopRepeatState.count++;
         } else {
-            // 生成新的
-            root = getValidRoot();
-            if(root === null) { stop(); return; }
-
-            const checkedChords = Array.from(document.querySelectorAll('#chord-list-loop input:checked')).map(c=>c.value);
-            if(checkedChords.length === 0) { alert("请选择和弦"); stop(); return; }
+            const isSeqMode = document.getElementById('seq-mode-chord').checked;
             
-            const typeId = checkedChords[Math.floor(Math.random()*checkedChords.length)];
-            chordObj = CHORDS.find(c => c.id === typeId);
-
-            // 生成 Voicing
-            let rawNotes = chordObj.int.map(i => root + i);
-            const allowInv = document.getElementById('inv-loop').checked;
-            const allowDouble = document.getElementById('double-loop').checked;
-            const maxNotes = parseInt(document.getElementById('max-notes-loop').value);
-            
-            if(allowDouble && Math.random() > 0.4 && rawNotes.length < maxNotes) rawNotes.push(root+12);
-            if(allowInv && Math.random() > 0.5) {
-                rawNotes[0] += 12;
-                rawNotes.sort((a,b)=>a-b);
-            }
-            notes = rawNotes.slice(0, maxNotes);
-
-            // 确定方向
-            const modes = Array.from(document.querySelectorAll('.chord-dir-loop:checked')).map(c=>c.value);
-            if(modes.length === 0) { alert("请选择模式"); stop(); return; }
-
-            if (isSeqMode) {
-                sequenceState.queue = modes; // ['up', 'down', 'harmonic'] 等
-                sequenceState.index = 0;
-                sequenceState.data = { root, chordObj, notes };
-                
+            // 判断是继续播放序列还是生成新的
+            if (isSeqMode && sequenceState.queue.length > 0 && sequenceState.index < sequenceState.queue.length) {
+                // 继续序列
+                root = sequenceState.data.root;
+                chordObj = sequenceState.data.chordObj;
+                notes = sequenceState.data.notes; 
                 mode = sequenceState.queue[sequenceState.index];
                 sequenceState.index++;
             } else {
-                sequenceState.queue = [];
-                mode = modes[Math.floor(Math.random()*modes.length)];
+                // 生成新的
+                root = getValidRoot();
+                if(root === null) { stop(); return; }
+
+                const checkedChords = Array.from(document.querySelectorAll('#chord-list-loop input:checked')).map(c=>c.value);
+                if(checkedChords.length === 0) { alert("请选择和弦"); stop(); return; }
+                
+                const typeId = checkedChords[Math.floor(Math.random()*checkedChords.length)];
+                chordObj = getAllChords().find(c => c.id === typeId);
+
+                // 生成 Voicing
+                let rawNotes = chordObj.int.map(i => root + i);
+                const allowInv = document.getElementById('inv-loop').checked;
+                const allowDouble = document.getElementById('double-loop').checked;
+                const maxNotes = parseInt(document.getElementById('max-notes-loop').value);
+                
+                if(allowDouble && Math.random() > 0.4 && rawNotes.length < maxNotes) rawNotes.push(root+12);
+                if(allowInv && Math.random() > 0.5) {
+                    rawNotes[0] += 12;
+                    rawNotes.sort((a,b)=>a-b);
+                }
+                notes = rawNotes.slice(0, maxNotes);
+
+                // 确定方向
+                const modes = Array.from(document.querySelectorAll('.chord-dir-loop:checked')).map(c=>c.value);
+                if(modes.length === 0) { alert("请选择模式"); stop(); return; }
+
+                if (isSeqMode) {
+                    sequenceState.queue = modes; 
+                    sequenceState.index = 0;
+                    sequenceState.data = { root, chordObj, notes };
+                    
+                    mode = sequenceState.queue[sequenceState.index];
+                    sequenceState.index++;
+                } else {
+                    sequenceState.queue = [];
+                    mode = modes[Math.floor(Math.random()*modes.length)];
+                }
             }
+            
+            // Init Repeat
+            const repeatInput = parseInt(document.getElementById('repeat-loop-chord').value) || 1;
+            loopRepeatState.max = repeatInput;
+            loopRepeatState.count = 1;
+            loopRepeatState.lastData = { root, chordObj, notes, mode };
         }
 
         const speed = parseInt(document.getElementById('arp-speed-loop').value);
@@ -753,31 +1023,45 @@ const CHORDS = [
             dur = notes.length * speed + 100;
         }
 
+        const isSeqMode = document.getElementById('seq-mode-chord').checked;
         let seqTag = "";
         if (isSeqMode) {
             seqTag = `<span class="seq-tag">序列 ${sequenceState.index}/${sequenceState.queue.length}</span>`;
         }
+        
+        let repeatTag = "";
+        if (loopRepeatState.max > 1) {
+            repeatTag = `<span class="seq-tag" style="background:#6c5ce7">重复 ${loopRepeatState.count}/${loopRepeatState.max}</span>`;
+        }
 
-        updateStatus(`${midiToName(root)} ${chordObj.name} ${seqTag}`, `音: ${notes.map(midiToName).join(' ')} (${mode})`);
+        updateStatus(`${midiToName(root)} ${chordObj.name} ${seqTag} ${repeatTag}`, `音: ${notes.map(midiToName).join(' ')} (${mode})`);
         nextRound(dur + gap);
     }
 
-    // --- 逻辑 3, 4, 5 (保持原有听辨逻辑，因为听辨通常不需要锁定序列) ---
-    function logicIntervalQuiz() {
-        const root = getValidRoot();
-        if(!root) { stop(); return; }
+    // --- 逻辑 3, 4, 5 (修改版：支持重复播放) ---
+    function logicIntervalQuiz(existingData = null) {
+        let root, semitones, note2, intName, mode, remainingRepeats;
         
-        const checkedInts = Array.from(document.querySelectorAll('#int-list-quiz input:checked'));
-        if(checkedInts.length === 0) { alert("选音程"); stop(); return; }
-        
-        const semitones = parseInt(checkedInts[Math.floor(Math.random()*checkedInts.length)].value);
-        const note2 = root + semitones;
-        const intName = INTERVALS.find(i => i.semitones === semitones).name;
-        const speakTextInt = intName.split(' ')[0]; 
+        if (existingData) {
+            ({root, semitones, note2, intName, mode, remainingRepeats} = existingData);
+        } else {
+            root = getValidRoot();
+            if(!root) { stop(); return; }
+            
+            const checkedInts = Array.from(document.querySelectorAll('#int-list-quiz input:checked'));
+            if(checkedInts.length === 0) { alert("选音程"); stop(); return; }
+            
+            semitones = parseInt(checkedInts[Math.floor(Math.random()*checkedInts.length)].value);
+            note2 = root + semitones;
+            intName = INTERVALS.find(i => i.semitones === semitones).name;
 
-        let mode = document.getElementById('quiz-int-mode').value;
-        if(mode === 'random') mode = ['asc','desc','harm'][Math.floor(Math.random()*3)];
-        
+            mode = document.getElementById('quiz-int-mode').value;
+            if(mode === 'random') mode = ['asc','desc','harm'][Math.floor(Math.random()*3)];
+            
+            remainingRepeats = (parseInt(document.getElementById('repeat-quiz-int').value) || 1) - 1;
+        }
+
+        const speakTextInt = intName.split(' ')[0]; 
         const speed = 500;
         const now = audioCtx.currentTime;
         let dur = 0;
@@ -796,40 +1080,59 @@ const CHORDS = [
             dur = 1000;
         }
 
-        updateStatus("🎧 听辨中...", "等待语音揭晓...");
+        updateStatus("🎧 听辨中...", `等待语音揭晓... (剩余重复: ${remainingRepeats})`);
 
-        setTimeout(() => {
-            if(!isPlaying) return;
-            const speakRoot = document.getElementById('speak-root-int').checked;
-            const rootName = NOTE_NAMES[root % 12];
-            let text = speakRoot ? `${rootName} ${speakTextInt}` : speakTextInt;
-            speak(text);
-            updateStatus(`答案: ${text}`, `(音程: ${intName})`);
-        }, dur + 500);
+        if (remainingRepeats > 0) {
+            // 继续重复播放题目
+            setTimeout(() => {
+                if(!isPlaying) return;
+                logicIntervalQuiz({root, semitones, note2, intName, mode, remainingRepeats: remainingRepeats - 1});
+            }, dur + 600); // 间隔
+        } else {
+            // 播放完毕，揭晓答案
+            setTimeout(() => {
+                if(!isPlaying) return;
+                const speakRoot = document.getElementById('speak-root-int').checked;
+                const rootName = NOTE_NAMES[root % 12];
+                let text = speakRoot ? `${rootName} ${speakTextInt}` : speakTextInt;
+                speak(text);
+                updateStatus(`答案: ${text}`, `(音程: ${intName})`);
+            }, dur + 500);
 
-        const gap = parseFloat(document.getElementById('gap-quiz-int').value) * 1000;
-        nextRound(dur + 1500 + gap); 
+            const gap = parseFloat(document.getElementById('gap-quiz-int').value) * 1000;
+            nextRound(dur + 1500 + gap); 
+        }
     }
 
-    function logicChordQuiz() {
-        const root = getValidRoot();
-        if(!root) { stop(); return; }
+    function logicChordQuiz(existingData = null) {
+        let root, chordObj, notes, remainingRepeats, playStyle;
+        
+        if (existingData) {
+            ({root, chordObj, notes, remainingRepeats, playStyle} = existingData);
+        } else {
+            root = getValidRoot();
+            if(!root) { stop(); return; }
 
-        const checkedChords = Array.from(document.querySelectorAll('#chord-list-quiz input:checked')).map(c=>c.value);
-        if(checkedChords.length === 0) { alert("选和弦"); stop(); return; }
-        
-        const typeId = checkedChords[Math.floor(Math.random()*checkedChords.length)];
-        const chordObj = CHORDS.find(c => c.id === typeId);
-        
-        let notes = chordObj.int.map(i => root + i);
-        if(document.getElementById('inv-quiz').checked && Math.random() > 0.5) {
-            notes[0] += 12;
-            notes.sort((a,b)=>a-b);
+            const checkedChords = Array.from(document.querySelectorAll('#chord-list-quiz input:checked')).map(c=>c.value);
+            if(checkedChords.length === 0) { alert("选和弦"); stop(); return; }
+            
+            const typeId = checkedChords[Math.floor(Math.random()*checkedChords.length)];
+            chordObj = getAllChords().find(c => c.id === typeId);
+            
+            notes = chordObj.int.map(i => root + i);
+            if(document.getElementById('inv-quiz').checked && Math.random() > 0.5) {
+                notes[0] += 12;
+                notes.sort((a,b)=>a-b);
+            }
+            
+            remainingRepeats = (parseInt(document.getElementById('repeat-quiz-chord').value) || 1) - 1;
+            playStyle = (Math.random() > 0.5 ? 'arp' : 'harm');
         }
 
         const now = audioCtx.currentTime;
         let dur = 0;
-        if(Math.random() > 0.5) {
+        
+        if(playStyle === 'arp') {
             notes.forEach((n,i) => playNote(n, now + i*0.2, 600));
             dur = notes.length * 200 + 400;
         } else {
@@ -837,44 +1140,64 @@ const CHORDS = [
             dur = 1200;
         }
 
-        updateStatus("🎧 听辨中...", "等待语音揭晓...");
+        updateStatus("🎧 听辨中...", `等待语音揭晓... (剩余重复: ${remainingRepeats})`);
 
-        setTimeout(() => {
-            if(!isPlaying) return;
-            const speakRoot = document.getElementById('speak-root-chord').checked;
-            const rootName = NOTE_NAMES[root % 12];
-            let cName = chordObj.name.split(' ')[0];
-            let text = speakRoot ? `${rootName} ${cName}` : cName;
-            speak(text);
-            updateStatus(`答案: ${text}`, `(${chordObj.name})`);
-        }, dur + 500);
+        if (remainingRepeats > 0) {
+            setTimeout(() => {
+                if(!isPlaying) return;
+                logicChordQuiz({root, chordObj, notes, remainingRepeats: remainingRepeats - 1, playStyle});
+            }, dur + 600);
+        } else {
+            setTimeout(() => {
+                if(!isPlaying) return;
+                const speakRoot = document.getElementById('speak-root-chord').checked;
+                const rootName = NOTE_NAMES[root % 12];
+                let cName = chordObj.name.split(' ')[0];
+                let text = speakRoot ? `${rootName} ${cName}` : cName;
+                speak(text);
+                updateStatus(`答案: ${text}`, `(${chordObj.name})`);
+            }, dur + 500);
 
-        const gap = parseFloat(document.getElementById('gap-quiz-chord').value) * 1000;
-        nextRound(dur + 1500 + gap);
+            const gap = parseFloat(document.getElementById('gap-quiz-chord').value) * 1000;
+            nextRound(dur + 1500 + gap);
+        }
     }
 
-    function logicNoteQuiz() {
-        const root = getValidRoot();
-        if(!root) { alert("请在上方通用设置中选择至少一个音名"); stop(); return; }
-
-        const durMs = parseInt(document.getElementById('note-dur-quiz').value);
-        const now = audioCtx.currentTime;
+    function logicNoteQuiz(existingData = null) {
+        let root, durMs, remainingRepeats;
         
+        if (existingData) {
+            ({root, durMs, remainingRepeats} = existingData);
+        } else {
+            root = getValidRoot();
+            if(!root) { alert("请在上方通用设置中选择至少一个音名"); stop(); return; }
+            durMs = parseInt(document.getElementById('note-dur-quiz').value);
+            remainingRepeats = (parseInt(document.getElementById('repeat-quiz-note').value) || 1) - 1;
+        }
+
+        const now = audioCtx.currentTime;
         playNote(root, now, durMs);
-        updateStatus("🎧 听辨中...", "...");
+        updateStatus("🎧 听辨中...", `... (剩余重复: ${remainingRepeats})`);
 
-        setTimeout(() => {
-            if(!isPlaying) return;
-            let name = NOTE_NAMES[root % 12];
-            if(name.includes('#')) {
-                name = name.replace('#', '') + "升"; 
-            }
-            speak(name);
-            updateStatus(`答案: ${name}`, `(Midi: ${root})`);
-        }, durMs + 300);
+        if (remainingRepeats > 0) {
+            setTimeout(() => {
+                if(!isPlaying) return;
+                logicNoteQuiz({root, durMs, remainingRepeats: remainingRepeats - 1});
+            }, durMs + 600);
+        } else {
+            setTimeout(() => {
+                if(!isPlaying) return;
+                let name = NOTE_NAMES[root % 12];
+                if(name.includes('#')) {
+                    name = name.replace('#', '') + "升"; 
+                }
+                speak(name);
+                updateStatus(`答案: ${name}`, `(Midi: ${root})`);
+            }, durMs + 300);
 
-        const gap = parseFloat(document.getElementById('gap-quiz-note').value) * 1000;
-        nextRound(durMs + 1000 + gap);
+            const gap = parseFloat(document.getElementById('gap-quiz-note').value) * 1000;
+            nextRound(durMs + 1000 + gap);
+        }
     }
 
 </script>
