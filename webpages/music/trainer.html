@@ -200,6 +200,13 @@
         <button class="tab-btn" onclick="switchTab('note-quiz')">⑤ 单音听辨(语音)</button>
     </div>
 
+    <!-- 音量控制条 (悬浮或置顶) -->
+    <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; z-index: 100;">
+        <span style="font-size: 0.8rem; font-weight: bold; color: #555;">🔊</span>
+        <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.5" style="width: 80px; height: 4px; accent-color: var(--primary);">
+        <span id="vol-display" style="font-size: 0.8rem; min-width: 35px; text-align: right;">50%</span>
+    </div>
+
     <!-- 通用设置区域 -->
     <div style="padding: 20px 20px 0 20px; border-bottom: 1px dashed #ccc;">
         <div class="section-title">通用设置：根音过滤 & 范围</div>
@@ -462,6 +469,16 @@ const DEFAULT_CHORDS = [
     };
 
     function initUI() {
+        // 0. 音量控制
+        const volSlider = document.getElementById('vol-slider');
+        const volDisplay = document.getElementById('vol-display');
+        
+        volSlider.oninput = function() {
+            masterVolume = parseFloat(this.value);
+            volDisplay.innerText = Math.round(masterVolume * 100) + '%';
+            saveSettings(); // 音量变动也保存
+        };
+
         // 1. 根音范围
         const minSel = document.getElementById('range-min');
         const maxSel = document.getElementById('range-max');
@@ -502,11 +519,19 @@ const DEFAULT_CHORDS = [
         // 绑定按钮
         document.getElementById('btn-toggle').onclick = togglePlay;
         
-        // 绑定空格键
+        // 绑定空格键和音量键
         document.addEventListener('keydown', function(e) {
-            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
-                e.preventDefault(); // 防止滚动页面
+            if (e.target.tagName === 'INPUT') return; // 输入框时不触发
+
+            if (e.code === 'Space') {
+                e.preventDefault(); 
                 togglePlay();
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                adjustVolume(0.05);
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                adjustVolume(-0.05);
             }
         });
 
@@ -530,7 +555,8 @@ const DEFAULT_CHORDS = [
             'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'repeat-loop-chord',
             'speak-root-int', 'quiz-int-mode', 'gap-quiz-int', 'repeat-quiz-int',
             'speak-root-chord', 'inv-quiz', 'gap-quiz-chord', 'repeat-quiz-chord',
-            'note-dur-quiz', 'gap-quiz-note', 'repeat-quiz-note'
+            'note-dur-quiz', 'gap-quiz-note', 'repeat-quiz-note',
+            'vol-slider' // 保存音量
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -587,6 +613,12 @@ const DEFAULT_CHORDS = [
             if(el) {
                 if(el.type === 'checkbox') el.checked = settings[key];
                 else el.value = settings[key];
+                
+                // 特殊处理音量恢复
+                if(key === 'vol-slider') {
+                    masterVolume = parseFloat(settings[key]);
+                    document.getElementById('vol-display').innerText = Math.round(masterVolume * 100) + '%';
+                }
             }
         }
 
@@ -715,6 +747,16 @@ const DEFAULT_CHORDS = [
         saveSettings();
     }
 
+    window.adjustVolume = function(delta) {
+        masterVolume = Math.min(1.0, Math.max(0.0, masterVolume + delta));
+        document.getElementById('vol-slider').value = masterVolume;
+        document.getElementById('vol-display').innerText = Math.round(masterVolume * 100) + '%';
+        saveSettings();
+        
+        // 可选：播放一个短音提示音量
+        // if(audioCtx && audioCtx.state === 'running') playTone(440, audioCtx.currentTime, 0.1, 0.1); 
+    }
+
     // --- Tab 切换 ---
     window.switchTab = function(tabId) {
         if(isPlaying) stop();
@@ -763,8 +805,11 @@ const DEFAULT_CHORDS = [
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         
+        // 应用全局音量
+        const finalVol = vol * masterVolume;
+
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(vol, start + 0.02);
+        gain.gain.linearRampToValueAtTime(finalVol, start + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
         
         osc.start(start);
@@ -1227,4 +1272,4 @@ const DEFAULT_CHORDS = [
 
 </script>
 </body>
-</html>/html>
+</html>
