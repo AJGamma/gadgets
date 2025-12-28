@@ -372,8 +372,7 @@
     </div>
 
     <div class="action-bar">
-        <button class="btn btn-start" id="btn-start">开始训练</button>
-        <button class="btn btn-stop" id="btn-stop" disabled>停止</button>
+        <button class="btn btn-start" id="btn-toggle">开始训练 (Space)</button>
     </div>
 </div>
 
@@ -428,6 +427,7 @@ const DEFAULT_CHORDS = [
     let currentTab = 'interval-loop';
     let timeoutId = null;
     let activeOscs = [];
+    let masterVolume = 0.5; // 全局音量 (0.0 - 1.0)
     
     // 语音支持
     let availableVoices = [];
@@ -445,7 +445,14 @@ const DEFAULT_CHORDS = [
     let sequenceState = {
         active: false,
         queue: [],      // 待播放的模式列表 ['up', 'down', 'harm']
-        index: 0,       // 当前播放到第几个这里的
+        index: 0,       // 当前播放到第几个
+        data: null      // 锁定的音符数据 { root: 60, notes: [60, 64, 67], name: "C Maj" }
+    };
+    
+    // **新增：循环模式重复播放状态**
+    let loopRepeatState = {
+        count: 0,
+        max: 1,
         lastData: null
     };
 
@@ -493,8 +500,15 @@ const DEFAULT_CHORDS = [
         renderChordSelectors();
 
         // 绑定按钮
-        document.getElementById('btn-start').onclick = start;
-        document.getElementById('btn-stop').onclick = stop;
+        document.getElementById('btn-toggle').onclick = togglePlay;
+        
+        // 绑定空格键
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                e.preventDefault(); // 防止滚动页面
+                togglePlay();
+            }
+        });
 
         // 5. 加载上次保存的设置
         loadSettings();
@@ -783,6 +797,14 @@ const DEFAULT_CHORDS = [
 
     // --- 核心逻辑 ---
 
+    function togglePlay() {
+        if (isPlaying) {
+            stop();
+        } else {
+            start();
+        }
+    }
+
     function start() {
         if(isPlaying) return;
         initAudio();
@@ -792,8 +814,9 @@ const DEFAULT_CHORDS = [
         sequenceState = { active: false, queue: [], index: 0, data: null };
         loopRepeatState = { count: 0, max: 1, lastData: null };
 
-        document.getElementById('btn-start').disabled = true;
-        document.getElementById('btn-stop').disabled = false;
+        const btn = document.getElementById('btn-toggle');
+        btn.innerText = "停止 (Space)";
+        btn.className = "btn btn-stop";
         
         nextRound(0);
     }
@@ -805,8 +828,10 @@ const DEFAULT_CHORDS = [
         activeOscs.forEach(o => { try{o.stop()}catch(e){} });
         activeOscs = [];
         
-        document.getElementById('btn-start').disabled = false;
-        document.getElementById('btn-stop').disabled = true;
+        const btn = document.getElementById('btn-toggle');
+        btn.innerText = "开始训练 (Space)";
+        btn.className = "btn btn-start";
+        
         updateStatus("已停止", "");
     }
 
