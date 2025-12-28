@@ -5,54 +5,50 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  "use strict";
 
-    let lastKnownTitle = document.title;
-    let observer = null;
+  let lastKnownTitle = document.title;
+  let observer = null;
 
-    function updateTitleIfSidebarOpen() {
-        const activeLink = document.querySelector('#sidebar a.chat-item-drag-link.chat-item-drag-active');
-        if (!activeLink) return;
+  // 从活跃对话项中提取标题
+  function getActiveConversationTitle() {
+    // 使用更健壮的选择器：任意包含 .chat-item-drag-active 的元素
+    const activeItem = document.querySelector(".chat-item-drag-active");
+    if (!activeItem) return null;
 
-        const titleEl = activeLink.querySelector('.chat-item-drag-link-content-tip-text');
-        if (titleEl?.textContent.trim()) {
-            lastKnownTitle = titleEl.textContent.trim();
-            if (document.title !== lastKnownTitle) {
-                document.title = lastKnownTitle;
-            }
-        }
+    const titleEl = activeItem.querySelector(
+      ".chat-item-drag-link-content-tip-text",
+    );
+    return titleEl?.textContent.trim() || null;
+  }
+
+  // 同步标题（仅当有活跃对话时）
+  function syncDocumentTitle() {
+    const title = getActiveConversationTitle();
+    if (title) {
+      lastKnownTitle = title;
+      if (document.title !== lastKnownTitle) {
+        document.title = lastKnownTitle;
+      }
     }
+    // 若无活跃项，保留 lastKnownTitle，不作更新
+  }
 
-    function initObserver() {
-        const sidebar = document.getElementById('sidebar');
-        if (!sidebar) return;
+  // 初始化 MutationObserver（监听整个 body，但逻辑轻量）
+  function initObserver() {
+    if (observer) return;
 
-        // 如果已有 observer，先断开
-        if (observer) observer.disconnect();
+    observer = new MutationObserver(syncDocumentTitle);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      // 可选：若性能敏感，可限定监听区域（如包含 .sidebar-container 的祖先）
+    });
 
-        // 仅监听侧边栏内部变化
-        observer = new MutationObserver(updateTitleIfSidebarOpen);
-        observer.observe(sidebar, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class'],
-        });
+    // 立即尝试同步一次
+    syncDocumentTitle();
+  }
 
-        // 立即尝试更新一次
-        updateTitleIfSidebarOpen();
-    }
-
-    // 初始尝试初始化
-    initObserver();
-
-    // 若侧边栏是动态加载的（如 SPA 路由后渲染），需等待其出现
-    if (!document.getElementById('sidebar')) {
-        const checkInterval = setInterval(() => {
-            if (document.getElementById('sidebar')) {
-                clearInterval(checkInterval);
-                initObserver();
-            }
-        }, 500);
-    }
+  // 启动
+  initObserver();
 })();
