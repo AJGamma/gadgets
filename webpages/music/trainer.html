@@ -6,18 +6,21 @@
     <title>Web 全能音乐听力训练器 (Pro V2)</title>
     <style>
         :root {
-            --primary: #4a69bd;
-            --secondary: #6a89cc;
-            --accent: #e55039;
-            --bg: #f1f2f6;
-            --card: #ffffff;
-            --text: #2f3542;
-            --highlight: #2ed573;
+            /* 暗色复古配色 */
+            --primary: #f4d35e;    /* 琥珀黄 */
+            --secondary: #1f7a8c;  /* 复古蓝绿 */
+            --accent: #e3645b;     /* 复古红 */
+            --bg: #0f1624;         /* 深夜蓝 */
+            --card: #1b2433;       /* 深卡片 */
+            --text: #e6e1d9;       /* 暖白文字 */
+            --muted: #cfd0d4;      /* 次级文字，提亮 */
+            --panel: #151d2b;      /* 面板背景 */
+            --highlight: #9ef01a;  /* 点缀绿 */
         }
 
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg);
+            background: radial-gradient(120% 120% at 50% 30%, #18243a 0%, #0b111e 55%, #060a12 100%);
             color: var(--text);
             margin: 0;
             padding: 20px;
@@ -30,18 +33,43 @@
             background: var(--card);
             width: 100%;
             max-width: 1000px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-radius: 14px;
+            box-shadow: 0 18px 35px rgba(0,0,0,0.35);
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            border: 1px solid rgba(255,255,255,0.06);
         }
 
         /* Tabs */
         .tabs {
             display: flex;
-            background: #dfe4ea;
+            background: var(--panel);
             overflow-x: auto;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Top controls */
+        .top-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: var(--panel);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .top-controls .divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(255,255,255,0.12);
+        }
+        .top-controls select {
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.9rem;
         }
         
         /* Draggable Sortable List */
@@ -51,18 +79,18 @@
             flex-wrap: wrap;
             padding: 5px;
             min-height: 40px;
-            border: 1px dashed #ddd;
-            border-radius: 6px;
-            background: #fafafa;
+            border: 1px dashed rgba(255,255,255,0.12);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.03);
             align-items: center;
         }
         .sortable-item {
             display: flex;
             align-items: center;
-            background: white;
+            background: rgba(255,255,255,0.05);
             padding: 5px 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
             cursor: grab;
             user-select: none;
             transition: transform 0.2s, box-shadow 0.2s;
@@ -72,12 +100,27 @@
             cursor: grabbing;
         }
         .sortable-item:hover {
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
         }
         .sortable-handle {
             margin-right: 8px;
-            color: #999;
+            color: #c9c4b8;
             cursor: grab;
+        }
+
+        /* Key cards (keyboard tab) */
+        .key-card {
+            background: rgba(255,255,255,0.05) !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            border-radius: 8px !important;
+            padding: 12px 10px !important;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .key-card:hover {
+            background: rgba(255,255,255,0.08) !important;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.35);
         }
 
         .tab-btn {
@@ -86,19 +129,19 @@
             border: none;
             background: transparent;
             font-weight: 600;
-            color: #747d8c;
+            color: #c7cedd;
             cursor: pointer;
             white-space: nowrap;
             transition: all 0.2s;
             border-bottom: 3px solid transparent;
         }
         .tab-btn.active {
-            background: var(--card);
+            background: #111827;
             color: var(--primary);
             border-bottom-color: var(--primary);
         }
         .tab-btn:hover:not(.active) {
-            background: #ced6e0;
+            background: rgba(255,255,255,0.05);
         }
 
         /* Content */
@@ -114,7 +157,7 @@
         .section {
             margin-bottom: 20px;
             padding-bottom: 15px;
-            border-bottom: 1px solid #f1f2f6;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
         .section-title {
             font-size: 1.1rem;
@@ -152,24 +195,31 @@
         }
         select, input[type="number"] {
             padding: 6px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.08);
+            color: var(--text);
+            border-radius: 6px;
+        }
+        select option, select optgroup {
+            background: #0f1624;
+            color: var(--text);
         }
 
         /* Special Toggle for Sequence Mode */
         .seq-toggle {
-            background-color: #f0fdf4;
-            border: 1px solid #bbf7d0;
+            background-color: rgba(158, 240, 26, 0.08);
+            border: 1px solid rgba(158, 240, 26, 0.35);
             padding: 5px 10px;
             border-radius: 6px;
-            color: #15803d;
+            color: #c7f77b;
             font-weight: bold;
         }
 
         /* Status Box */
         .status-box {
-            background: #dfe6e9;
-            border-radius: 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
             padding: 20px;
             text-align: center;
             margin-top: 10px;
@@ -179,31 +229,33 @@
             justify-content: center;
         }
         .main-text { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin: 5px 0; }
-        .sub-text { font-size: 0.9rem; color: #636e72; }
+        .sub-text { font-size: 0.9rem; color: var(--muted); }
         .seq-tag { font-size: 0.8rem; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
 
         /* Buttons */
         .action-bar {
             padding: 20px;
-            background: #f7f9fa;
-            border-top: 1px solid #eee;
+            background: var(--panel);
+            border-top: 1px solid rgba(255,255,255,0.08);
             display: flex;
             gap: 15px;
         }
         .btn {
             flex: 1;
             padding: 12px;
-            border: none;
-            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             transition: 0.2s;
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
         }
-        .btn-start { background: var(--primary); color: white; }
-        .btn-start:hover { background: #3c56a5; }
-        .btn-stop { background: var(--accent); color: white; }
-        .btn-stop:disabled { background: #b2bec3; cursor: not-allowed; }
+        .btn-start { background: var(--primary); color: #0c0c0c; }
+        .btn-start:hover { background: #ffd36a; }
+        .btn-stop { background: var(--accent); color: #0c0c0c; }
+        .btn-stop:disabled { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); cursor: not-allowed; }
 
         /* Helpers */
         .note-selector {
@@ -238,18 +290,21 @@
         <button class="tab-btn" onclick="switchTab('keyboard-mode')">⑥ 键盘控制(Pro)</button>
     </div>
 
-    <!-- 音量控制条 (悬浮或置顶) -->
-    <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; z-index: 100;">
-        <span style="font-size: 0.8rem; font-weight: bold; color: #555;">🔊</span>
-        <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.5" style="width: 80px; height: 4px; accent-color: var(--primary);">
-        <span id="vol-display" style="font-size: 0.8rem; min-width: 35px; text-align: right;">50%</span>
+    <!-- 音量 / 音色 控制条 -->
+    <div class="top-controls">
+        <span style="font-size: 0.9rem; font-weight: 600; color: var(--text);">🔊 音量</span>
+        <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.5" style="width: 140px; height: 4px; accent-color: var(--primary);">
+        <span id="vol-display" style="font-size: 0.9rem; min-width: 46px; text-align: right;">50%</span>
         
-        <div style="width:1px; height:15px; background:#ccc; margin:0 5px;"></div>
+        <div class="divider"></div>
         
-        <!-- 音色选择 -->
-        <select id="timbre-select" style="font-size:0.8rem; border:none; background:transparent; cursor:pointer; outline:none;">
+        <span style="font-size: 0.9rem; font-weight: 600; color: var(--text);">🎨 音色</span>
+        <select id="timbre-select">
             <option value="osc">🌊 合成器</option>
             <option value="piano">🎹 钢琴</option>
+            <option value="guitar-acoustic">🎸 原声吉他</option>
+            <option value="guitar-electric">🎸 电吉他</option>
+            <option value="violin">🎻 小提琴</option>
         </select>
     </div>
 
@@ -317,18 +372,18 @@
         </div>
         
         <!-- 新增：自定义和弦添加区域 -->
-        <div class="section" style="background: #fdfdfd; border: 1px dashed #ccc; padding: 10px; border-radius: 6px;">
+        <div class="section" style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
             <div class="section-title" style="font-size: 1rem;">添加自定义和弦</div>
              <div class="flex-row" style="align-items: flex-end;">
                 <div>
-                    <div style="font-size:0.8rem;color:#666;margin-bottom:4px;">名称 (如: MyMaj9)</div>
+                    <div style="font-size:0.8rem;color:#999;margin-bottom:4px;">名称 (如: MyMaj9)</div>
                     <input type="text" id="new-chord-name" style="width:110px">
                 </div>
                 <div>
-                    <div style="font-size:0.8rem;color:#666;margin-bottom:4px;">音程 (半音, 逗号分隔)</div>
+                    <div style="font-size:0.8rem;color:#999;margin-bottom:4px;">音程 (半音, 逗号分隔)</div>
                     <input type="text" id="new-chord-int" placeholder="0,4,7,11" style="width:140px">
                 </div>
-                <button onclick="addCustomChord()" style="padding:6px 15px; background:var(--highlight); color:white; border:none; border-radius:4px; cursor:pointer;">添加</button>
+                <button onclick="addCustomChord()" style="padding:6px 15px; background:var(--highlight); color:black; border:none; border-radius:4px; cursor:pointer;">添加</button>
             </div>
             <div style="margin-top:5px; font-size:0.8rem; color:#999;">注：0代表根音。例如大三和弦为 0,4,7</div>
         </div>
@@ -394,7 +449,7 @@
             <div class="flex-row" style="margin-top:10px;">
                 <span>间隔(s):</span> <input type="number" id="gap-quiz-int" value="0.5" step="0.5" style="width:60px">
                 <span>播放次数:</span> <input type="number" id="repeat-quiz-int" value="1" min="1" style="width:50px">
-                <small style="color:#666; margin-left:10px;">(声音播报完后的等待时间)</small>
+                <small style="color:#999; margin-left:10px;">(声音播报完后的等待时间)</small>
             </div>
         </div>
     </div>
@@ -422,7 +477,7 @@
     <div id="note-quiz" class="content">
         <div class="section">
             <div class="section-title">说明</div>
-            <p style="margin:0; color:#666; font-size:0.9rem;">
+            <p style="margin:0; color:#999; font-size:0.9rem;">
                 此模式将随机播放“通用设置”中选中的音符（如C, D, E等），并在播放后语音报出音名。
                 <br>适合绝对音感训练。建议在上方减少选中的根音数量，从3-4个音开始练习。
             </p>
@@ -545,8 +600,26 @@ const DEFAULT_CHORDS = [
     let masterVolume = 0.5; // 全局音量 (0.0 - 1.0)
     
     // --- 采样器数据 ---
-    const BASE_SAMPLE_URL = "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/";
-    const PIANO_SAMPLE_MAP = {
+    const INSTRUMENT_CONFIGS = {
+        'piano': {
+            label: '钢琴',
+            base: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/",
+        },
+        'guitar-acoustic': {
+            label: '原声吉他',
+            base: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/guitar-acoustic/",
+        },
+        'guitar-electric': {
+            label: '电吉他',
+            base: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/guitar-electric/",
+        },
+        'violin': {
+            label: '小提琴',
+            base: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/violin/",
+        }
+    };
+    // 统一的关键帧采样映射（跨乐器复用）
+    const SAMPLE_MAP = {
         36: "C2.mp3", 39: "Ds2.mp3", 42: "Fs2.mp3", 45: "A2.mp3",
         48: "C3.mp3", 51: "Ds3.mp3", 54: "Fs3.mp3", 57: "A3.mp3",
         60: "C4.mp3", 63: "Ds4.mp3", 66: "Fs4.mp3", 69: "A4.mp3",
@@ -556,10 +629,10 @@ const DEFAULT_CHORDS = [
     };
     
     let samplerState = {
-        buffers: {}, 
-        loading: false,
-        loaded: false,
-        timbre: 'osc' // 'osc' | 'piano'
+        buffers: {},     // { instrumentId: { midi: AudioBuffer } }
+        loading: {},     // { instrumentId: boolean }
+        loaded: {},      // { instrumentId: boolean }
+        timbre: 'osc'    // 'osc' | instrumentId
     };
 
     // 语音支持
@@ -662,8 +735,8 @@ const DEFAULT_CHORDS = [
         const timbreSel = document.getElementById('timbre-select');
         timbreSel.onchange = function() {
             samplerState.timbre = this.value;
-            if(this.value === 'piano' && !samplerState.loaded) {
-                loadPianoSamples();
+            if(this.value !== 'osc' && !samplerState.loaded[this.value]) {
+                loadInstrumentSamples(this.value);
             }
             saveSettings();
         };
@@ -708,8 +781,7 @@ const DEFAULT_CHORDS = [
             const intObj = INTERVALS.find(i => i.semitones === km.semi);
             const div = document.createElement('div');
             div.className = 'key-card';
-            div.style.cssText = "background:#fff; border:1px solid #ddd; border-radius:6px; padding:10px; text-align:center; cursor:pointer; transition:all 0.1s;";
-            div.innerHTML = `<div style="font-weight:bold; font-size:1.2rem; color:var(--primary);">${km.key}</div><div style="font-size:0.8rem; color:#666;">${intObj.name}</div>`;
+            div.innerHTML = `<div style="font-weight:bold; font-size:1.2rem; color:var(--primary);">${km.key}</div><div style="font-size:0.8rem; color:var(--muted);">${intObj.name}</div>`;
             div.id = `key-card-${km.key}`; // 用于高亮
             
             // 点击也可以触发
@@ -860,7 +932,7 @@ const DEFAULT_CHORDS = [
         if (settings.chordDirLoop) restoreSortAndCheck('#sort-dir-chord', settings.chordDirLoop);
         if (settings.playDirKey) restoreSortAndCheck('#sort-dir-key', settings.playDirKey);
 
-        // 恢复简单 ID
+            // 恢复简单 ID
         for(let key in settings) {
             // 跳过复杂对象
             if(['currentTab', 'rootNotes', 'intListLoop', 'playDirLoop', 'chordListLoop', 'chordDirLoop', 'intListQuiz', 'chordListQuiz', 'customChords', 'playDirKey'].includes(key)) continue;
@@ -876,11 +948,11 @@ const DEFAULT_CHORDS = [
                     document.getElementById('vol-display').innerText = Math.round(masterVolume * 100) + '%';
                 }
                 
-                // 特殊处理音色恢复
-                if(key === 'timbre-select') {
-                    samplerState.timbre = settings[key];
-                    if(samplerState.timbre === 'piano') loadPianoSamples();
-                }
+                    // 特殊处理音色恢复
+                    if(key === 'timbre-select') {
+                        samplerState.timbre = settings[key];
+                        if(samplerState.timbre !== 'osc') loadInstrumentSamples(samplerState.timbre);
+                    }
             }
         }
 
@@ -1116,38 +1188,44 @@ const DEFAULT_CHORDS = [
     }
 
     // --- 采样器逻辑 ---
-    async function loadPianoSamples() {
-        if(samplerState.loaded || samplerState.loading) return;
+    async function loadInstrumentSamples(instrumentId) {
+        if(instrumentId === 'osc') return;
+        if(samplerState.loaded[instrumentId] || samplerState.loading[instrumentId]) return;
+        
+        const cfg = INSTRUMENT_CONFIGS[instrumentId];
+        if(!cfg) { console.warn('Unknown instrument', instrumentId); return; }
         
         initAudio(); 
-        samplerState.loading = true;
+        samplerState.loading[instrumentId] = true;
         
         // UI 反馈
         const sel = document.getElementById('timbre-select');
         if(sel) sel.disabled = true;
-        updateStatus("⏳ 正在下载钢琴音色...", "首次加载需要几秒钟 (约2MB)");
+        updateStatus(`⏳ 正在下载${cfg.label}音色...`, "首次加载需要几秒钟 (约2MB)");
         
-        const promises = Object.entries(PIANO_SAMPLE_MAP).map(async ([midi, filename]) => {
+        if(!samplerState.buffers[instrumentId]) samplerState.buffers[instrumentId] = {};
+        
+        const promises = Object.entries(SAMPLE_MAP).map(async ([midi, filename]) => {
             try {
-                const response = await fetch(BASE_SAMPLE_URL + filename);
+                const response = await fetch(cfg.base + filename);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                samplerState.buffers[midi] = audioBuffer;
+                samplerState.buffers[instrumentId][midi] = audioBuffer;
             } catch(e) {
-                console.warn(`Failed to load sample ${midi}:`, e);
+                console.warn(`Failed to load sample ${instrumentId} ${midi}:`, e);
             }
         });
         
         try {
             await Promise.all(promises);
-            samplerState.loaded = true;
-            updateStatus("🎹 钢琴音色就绪", "开始训练吧");
+            samplerState.loaded[instrumentId] = true;
+        updateStatus(`${cfg.label}音色就绪`, "开始训练吧");
         } catch(e) {
             alert("音色加载失败，请检查网络");
             samplerState.timbre = 'osc';
             if(sel) sel.value = 'osc';
         } finally {
-            samplerState.loading = false;
+            samplerState.loading[instrumentId] = false;
             if(sel) sel.disabled = false;
         }
     }
@@ -1180,11 +1258,15 @@ const DEFAULT_CHORDS = [
     }
 
     function playSampleNote(targetMidi, start, durMs, vol=0.5) {
+        const inst = samplerState.timbre;
+        const instBuffers = samplerState.buffers[inst];
+        if(!instBuffers) return;
+
         // 1. 寻找最近的采样
         let nearestMidi = -1;
         let minDist = 999;
         
-        for(let m in samplerState.buffers) {
+        for(let m in instBuffers) {
             const dist = Math.abs(targetMidi - m);
             if(dist < minDist) {
                 minDist = dist;
@@ -1194,7 +1276,7 @@ const DEFAULT_CHORDS = [
         
         if(nearestMidi === -1) return; // 未加载或加载失败
         
-        const buffer = samplerState.buffers[nearestMidi];
+        const buffer = instBuffers[nearestMidi];
         const source = audioCtx.createBufferSource();
         source.buffer = buffer;
         
@@ -1221,7 +1303,7 @@ const DEFAULT_CHORDS = [
     }
 
     function playNote(midi, start, durMs, vol=0.5) {
-        if (samplerState.timbre === 'piano' && samplerState.loaded) {
+        if (samplerState.timbre !== 'osc' && samplerState.loaded[samplerState.timbre]) {
             playSampleNote(midi, start, durMs, vol);
         } else {
             // 回退到合成器

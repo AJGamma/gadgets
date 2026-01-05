@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnichord Pro - 全功能版</title>
+    <style>
+        :root {
+            --bg-color: #f0e6d2;
+            --plate-active: #d4af37;
+            /* 和弦行颜色定义 */
+            --c-major: #ffb3b3;
+            --c-minor: #b3d9ff;
+            --c-7th:   #e0b3ff;
+            --c-maj7:  #ffdfb3;
+            --c-m7:    #b3ffcc;
+            --c-aug:   #ffffb3;
+            --c-dim:   #d9d9d9;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #2a2a2a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #omnichord {
+            background-color: var(--bg-color);
+            width: 95vw;
+            max-width: 1100px;
+            height: 600px;
+            border-radius: 30px 100px 30px 30px;
+            display: flex;
+            padding: 15px;
+            box-shadow: 0 0 60px rgba(0,0,0,0.6);
+            position: relative;
+            border: 6px solid #dcd0b9;
+            box-sizing: border-box;
+        }
+
+        /* 左侧：控制面板 */
+        .control-section {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding-right: 15px;
+            border-right: 2px solid #ccc;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 5px;
+            color: #554a3e;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 800;
+            font-style: italic;
+            letter-spacing: -1px;
+            color: #444;
+        }
+
+        .power-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px #cc0000;
+            transition: all 0.1s;
+        }
+        .power-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #cc0000;
+        }
+        .power-btn.on {
+            background: #44cc44;
+            box-shadow: 0 4px #2a8f2a;
+        }
+        .power-btn.on:active {
+            box-shadow: 0 0 #2a8f2a;
+        }
+
+        /* 复杂的和弦网格 */
+        .chord-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-evenly;
+        }
+
+        .chord-row {
+            display: grid;
+            grid-template-columns: 50px repeat(12, 1fr); /* 标签 + 12个音 */
+            gap: 6px;
+            align-items: center;
+        }
+
+        .row-label {
+            font-size: 10px;
+            font-weight: bold;
+            text-align: right;
+            padding-right: 8px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .chord-btn {
+            height: 42px;
+            border-radius: 6px; /* 稍微方一点，利用空间 */
+            border: 1px solid rgba(0,0,0,0.1);
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 3px rgba(0,0,0,0.2);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.05s, box-shadow 0.05s;
+            position: relative;
+        }
+
+        .chord-btn:active, .chord-btn.active {
+            transform: translateY(3px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            background: #fff !important;
+            border-color: #333;
+            z-index: 10;
+        }
+
+        /* 根音标识 */
+        .chord-btn sub {
+            font-size: 9px;
+            margin-left: 1px;
+        }
+
+        /* 颜色映射 */
+        .type-Major .chord-btn { background-color: var(--c-major); }
+        .type-Minor .chord-btn { background-color: var(--c-minor); }
+        .type-7th .chord-btn   { background-color: var(--c-7th); }
+        .type-Maj7 .chord-btn  { background-color: var(--c-maj7); }
+        .type-m7 .chord-btn    { background-color: var(--c-m7); }
+        .type-aug .chord-btn   { background-color: var(--c-aug); }
+        .type-dim .chord-btn   { background-color: var(--c-dim); }
+
+        /* 右侧：扫弦板 */
+        .strum-section {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .strumplate-frame {
+            background: #333;
+            padding: 10px;
+            border-radius: 15px;
+            height: 90%;
+            width: 140px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .strumplate {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #222 0%, #555 50%, #222 100%);
+            border-radius: 8px;
+            position: relative;
+            cursor: row-resize;
+            overflow: hidden;
+            border: 2px solid #777;
+        }
+
+        /* 金属纹理 */
+        .strumplate::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 2px,
+                rgba(255,255,255,0.05) 2px,
+                rgba(255,255,255,0.05) 4px
+            );
+            pointer-events: none;
+        }
+
+        .indicator {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: #fff;
+            box-shadow: 0 0 15px #fff, 0 0 30px var(--plate-active);
+            opacity: 0;
+            pointer-events: none;
+            mix-blend-mode: overlay;
+        }
+
+        .speaker-grill {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            background-image: radial-gradient(#6e5f48 25%, transparent 25%);
+            background-size: 8px 8px;
+            opacity: 0.3;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .status-display {
+            font-family: 'Courier New', monospace;
+            background: #222;
+            color: #0f0;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+            height: 20px;
+            line-height: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="omnichord">
+        <div class="control-section">
+            <div class="header">
+                <div class="logo">OMNI-CHORD <span style="font-size:14px; font-weight:normal; color:#888;">System 108</span></div>
+                <button class="power-btn" id="powerBtn">START</button>
+            </div>
+
+            <!-- 和弦容器 -->
+            <div class="chord-container" id="chordContainer">
+                <!-- JS 动态生成 7 行 12 列 -->
+            </div>
+        </div>
+
+        <div class="strum-section">
+            <div class="status-display" id="display">READY</div>
+            <div class="strumplate-frame">
+                <div class="strumplate" id="strumplate">
+                    <div class="indicator" id="strumIndicator"></div>
+                </div>
+            </div>
+            <div class="speaker-grill"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Web Omnichord Engine V2
+         * 支持 7 种和弦类型 + 完整 12 半音
+         */
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let isPowerOn = false;
+        
+        // 1. 基础音高数据 (第4八度基准)
+        // 使用 Db 开头是 Omnichord 经典的五度圈布局左端
+        const noteMap = {
+            'Db': 277.18, 'Ab': 415.30, 'Eb': 311.13, 'Bb': 466.16,
+            'F': 349.23, 'C': 261.63, 'G': 392.00, 'D': 293.66,
+            'A': 440.00, 'E': 329.63, 'B': 493.88, 'F#': 369.99
+        };
+
+        // 界面排列顺序 (Circle of Fifths)
+        const roots = ['Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#'];
+
+        // 2. 和弦类型定义 (半音间隔)
+        const chordTypes = [
+            { id: 'Major', label: 'Maj',  intervals: [0, 4, 7] },
+            { id: 'Minor', label: 'Min',  intervals: [0, 3, 7] },
+            { id: '7th',   label: '7',    intervals: [0, 4, 7, 10] },
+            { id: 'Maj7',  label: 'Maj7', intervals: [0, 4, 7, 11] },
+            { id: 'm7',    label: 'm7',   intervals: [0, 3, 7, 10] },
+            { id: 'aug',   label: 'Aug',  intervals: [0, 4, 8] },
+            { id: 'dim',   label: 'Dim',  intervals: [0, 3, 6, 9] } // 采用减七和弦
+        ];
+
+        // 状态
+        let activeChord = null;
+        let bassOscillator = null;
+        let bassGain = null;
+        let lastStrumIndex = -1;
+
+        // UI 引用
+        const container = document.getElementById('chordContainer');
+        const display = document.getElementById('display');
+        const powerBtn = document.getElementById('powerBtn');
+        const strumplate = document.getElementById('strumplate');
+        const indicator = document.getElementById('strumIndicator');
+
+        // 初始化 UI
+        function initInterface() {
+            chordTypes.forEach(type => {
+                const row = document.createElement('div');
+                row.className = `chord-row type-${type.id}`;
+                
+                // 行标签
+                const label = document.createElement('div');
+                label.className = 'row-label';
+                label.innerText = type.label;
+                row.appendChild(label);
+
+                // 生成 12 个按钮
+                roots.forEach(root => {
+                    const btn = document.createElement('button');
+                    btn.className = 'chord-btn';
+                    
+                    // 按钮文字处理 (例如 Bb)
+                    btn.innerHTML = `${root}<sub>${getSuffix(type.id)}</sub>`;
+                    
+                    // 事件
+                    const triggerChord = (e) => {
+                        e.preventDefault();
+                        playChord(root, type);
+                        
+                        // 视觉反馈
+                        document.querySelectorAll('.chord-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    };
+
+                    btn.addEventListener('mousedown', triggerChord);
+                    btn.addEventListener('touchstart', triggerChord);
+                    // 允许按住拖动选择 (Glissando on buttons)
+                    btn.addEventListener('mouseenter', (e) => {
+                        if(e.buttons === 1) triggerChord(e);
+                    });
+
+                    row.appendChild(btn);
+                });
+
+                container.appendChild(row);
+            });
+        }
+
+        function getSuffix(typeId) {
+            switch(typeId) {
+                case 'Major': return '';
+                case 'Minor': return 'm';
+                case '7th': return '7';
+                case 'Maj7': return 'M7';
+                case 'm7': return 'm7';
+                case 'aug': return '+';
+                case 'dim': return '°';
+                default: return '';
+            }
+        }
+
+        // 电源开关
+        powerBtn.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            isPowerOn = !isPowerOn;
+            powerBtn.classList.toggle('on', isPowerOn);
+            powerBtn.innerText = isPowerOn ? "ON" : "START";
+            display.innerText = isPowerOn ? "SELECT CHORD" : "OFF";
+            
+            if (!isPowerOn) {
+                stopBass();
+                activeChord = null;
+                document.querySelectorAll('.chord-btn').forEach(b => b.classList.remove('active'));
+            }
+        });
+
+        // 播放和弦 (贝斯 + 设置状态)
+        function playChord(rootName, typeObj) {
+            if (!isPowerOn) return;
+
+            let baseFreq = noteMap[rootName];
+            // 确保贝斯根音在合理范围 (约 130Hz - 260Hz)
+            if (baseFreq > 300) baseFreq /= 2;
+
+            activeChord = {
+                rootName: rootName,
+                baseFreq: baseFreq,
+                intervals: typeObj.intervals,
+                name: rootName + getSuffix(typeObj.id)
+            };
+
+            display.innerText = activeChord.name;
+            updateBass(baseFreq);
+        }
+
+        // 贝斯合成器 (单振荡器持续音)
+        function updateBass(freq) {
+            const bassFreq = freq / 2; // 贝斯比基准低八度
+
+            if (!bassOscillator) {
+                bassOscillator = audioCtx.createOscillator();
+                bassGain = audioCtx.createGain();
+                
+                // 混合波形模拟复古感 (方波+锯齿波效果)
+                bassOscillator.type = 'sawtooth'; 
+                
+                // 低通滤波让声音变圆润
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 400;
+
+                bassOscillator.connect(filter);
+                filter.connect(bassGain);
+                bassGain.connect(audioCtx.destination);
+                
+                bassOscillator.start();
+                
+                bassGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                bassGain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.1);
+            }
+            
+            // 滑音效果 (Portamento)
+            bassOscillator.frequency.setTargetAtTime(bassFreq, audioCtx.currentTime, 0.05);
+        }
+
+        function stopBass() {
+            if (bassOscillator) {
+                bassGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                setTimeout(() => {
+                    if(bassOscillator) {
+                        bassOscillator.stop();
+                        bassOscillator = null;
+                    }
+                }, 200);
+            }
+        }
+
+        // 扫弦合成器 (Sonic Strings)
+        function handleStrum(ratio) {
+            if (!isPowerOn || !activeChord) return;
+
+            // 视觉更新
+            const pct = ratio * 100;
+            indicator.style.top = `${pct}%`;
+            indicator.style.opacity = 0.8;
+            setTimeout(() => indicator.style.opacity = 0, 100);
+
+            // 音符计算
+            // 范围扩大到 4 个八度 * 和弦内音数
+            const intervals = activeChord.intervals;
+            const totalNotes = 4 * intervals.length; 
+            
+            // 反转 ratio (底部是低音，顶部是高音)
+            const inputVal = 1 - ratio; 
+            const noteIndex = Math.floor(inputVal * totalNotes);
+
+            if (noteIndex !== lastStrumIndex) {
+                playStrumTone(noteIndex, intervals, activeChord.baseFreq);
+                lastStrumIndex = noteIndex;
+            }
+        }
+
+        function playStrumTone(index, intervals, rootFreq) {
+            const octave = Math.floor(index / intervals.length);
+            const intervalIdx = index % intervals.length;
+            const semitones = intervals[intervalIdx];
+
+            // 频率计算公式
+            const freq = rootFreq * Math.pow(2, semitones / 12) * Math.pow(2, octave);
+
+            // 合成音色 (铃声/竖琴感)
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            // Omnichord 特有的 "Harp" 音色通常是脉冲波或三角波
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            // 声音包络 (Envelope)
+            const now = audioCtx.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.01); // 快速起音
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2); // 较长余音
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(now + 1.5);
+        }
+
+        // 输入处理 (鼠标 + 触摸)
+        const processInput = (y, height) => {
+            const ratio = Math.max(0, Math.min(1, y / height));
+            handleStrum(ratio);
+        };
+
+        strumplate.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1) {
+                const rect = strumplate.getBoundingClientRect();
+                processInput(e.clientY - rect.top, rect.height);
+            }
+        });
+        
+        strumplate.addEventListener('mousedown', (e) => {
+            lastStrumIndex = -1; // 重置防止跳音
+            const rect = strumplate.getBoundingClientRect();
+            processInput(e.clientY - rect.top, rect.height);
+        });
+
+        strumplate.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = strumplate.getBoundingClientRect();
+            const touch = e.touches[0];
+            processInput(touch.clientY - rect.top, rect.height);
+        }, { passive: false });
+        
+        strumplate.addEventListener('touchstart', (e) => {
+             e.preventDefault();
+             lastStrumIndex = -1;
+        }, { passive: false });
+
+
+        // 启动构建
+        initInterface();
+
+    </script>
+</body>
+</html>
