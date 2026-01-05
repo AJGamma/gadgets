@@ -43,6 +43,43 @@
             background: #dfe4ea;
             overflow-x: auto;
         }
+        
+        /* Draggable Sortable List */
+        .sortable-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 5px;
+            min-height: 40px;
+            border: 1px dashed #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+            align-items: center;
+        }
+        .sortable-item {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: grab;
+            user-select: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .sortable-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .sortable-item:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .sortable-handle {
+            margin-right: 8px;
+            color: #999;
+            cursor: grab;
+        }
+
         .tab-btn {
             flex: 1;
             padding: 15px;
@@ -198,6 +235,7 @@
         <button class="tab-btn" onclick="switchTab('interval-quiz')">③ 音程听辨(语音)</button>
         <button class="tab-btn" onclick="switchTab('chord-quiz')">④ 和弦听辨(语音)</button>
         <button class="tab-btn" onclick="switchTab('note-quiz')">⑤ 单音听辨(语音)</button>
+        <button class="tab-btn" onclick="switchTab('keyboard-mode')">⑥ 键盘控制(Pro)</button>
     </div>
 
     <!-- 音量控制条 (悬浮或置顶) -->
@@ -205,6 +243,14 @@
         <span style="font-size: 0.8rem; font-weight: bold; color: #555;">🔊</span>
         <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.5" style="width: 80px; height: 4px; accent-color: var(--primary);">
         <span id="vol-display" style="font-size: 0.8rem; min-width: 35px; text-align: right;">50%</span>
+        
+        <div style="width:1px; height:15px; background:#ccc; margin:0 5px;"></div>
+        
+        <!-- 音色选择 -->
+        <select id="timbre-select" style="font-size:0.8rem; border:none; background:transparent; cursor:pointer; outline:none;">
+            <option value="osc">🌊 合成器</option>
+            <option value="piano">🎹 钢琴</option>
+        </select>
     </div>
 
     <!-- 通用设置区域 -->
@@ -232,11 +278,20 @@
             <div class="grid-options" id="int-list-loop"></div>
         </div>
         <div class="section">
-            <div class="section-title">播放设置</div>
-            <div class="flex-row">
-                <label><input type="checkbox" class="play-dir-loop" value="asc" checked> 上行</label>
-                <label><input type="checkbox" class="play-dir-loop" value="desc" checked> 下行</label>
-                <label><input type="checkbox" class="play-dir-loop" value="harm" checked> 和声</label>
+            <div class="section-title">播放设置 (拖拽调整顺序)</div>
+            <div class="sortable-list" id="sort-dir-loop">
+                <div class="sortable-item" draggable="true" data-val="asc">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-loop" value="asc" checked> 上行</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="desc">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-loop" value="desc" checked> 下行</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="harm">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-loop" value="harm" checked> 和声</label>
+                </div>
             </div>
             
             <!-- 新增：顺序模式开关 -->
@@ -279,11 +334,20 @@
         </div>
 
         <div class="section">
-            <div class="section-title">播放设置</div>
-            <div class="flex-row">
-                <label><input type="checkbox" class="chord-dir-loop" value="up" checked> 上行琶音</label>
-                <label><input type="checkbox" class="chord-dir-loop" value="down" checked> 下行琶音</label>
-                <label><input type="checkbox" class="chord-dir-loop" value="harmonic" checked> 柱式和弦</label>
+            <div class="section-title">播放设置 (拖拽调整顺序)</div>
+            <div class="sortable-list" id="sort-dir-chord">
+                <div class="sortable-item" draggable="true" data-val="up">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="chord-dir-loop" value="up" checked> 上行琶音</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="down">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="chord-dir-loop" value="down" checked> 下行琶音</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="harmonic">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="chord-dir-loop" value="harmonic" checked> 柱式和弦</label>
+                </div>
             </div>
 
             <!-- 新增：顺序模式开关 -->
@@ -295,6 +359,7 @@
 
             <div class="flex-row" style="margin-top:15px;">
                 <span>琶音速度:</span> <input type="number" id="arp-speed-loop" value="150" style="width:60px">
+                <span>柱式时长:</span> <input type="number" id="chord-dur-loop" value="1200" step="100" style="width:60px">
                 <span>间隔(s):</span> <input type="number" id="chord-gap-loop" value="0.5" step="0.5" style="width:60px">
                 <span>重复次数:</span> <input type="number" id="repeat-loop-chord" value="1" min="1" style="width:50px">
             </div>
@@ -361,7 +426,7 @@
                 此模式将随机播放“通用设置”中选中的音符（如C, D, E等），并在播放后语音报出音名。
                 <br>适合绝对音感训练。建议在上方减少选中的根音数量，从3-4个音开始练习。
             </p>
-        </div>8
+        </div>
         <div class="section">
             <div class="section-title">设置</div>
             <div class="flex-row">
@@ -369,6 +434,49 @@
                 <span>间隔(s):</span> <input type="number" id="gap-quiz-note" value="0.5" step="0.5" style="width:60px">
                 <span>播放次数:</span> <input type="number" id="repeat-quiz-note" value="1" min="1" style="width:50px">
             </div>
+        </div>
+    </div>
+
+    <!-- Tab 6: 键盘控制模式 -->
+    <div id="keyboard-mode" class="content">
+        <div class="section">
+            <div class="section-title">
+                <span>快捷键映射 (按键直接播放)</span>
+                <label style="font-size:0.9rem; display:flex; align-items:center;">
+                    <input type="checkbox" id="key-loop-mode"> 循环播放当前音程
+                </label>
+            </div>
+            <!-- 生成 12 个按键卡片 -->
+            <div class="grid-options" id="key-map-display" style="grid-template-columns: repeat(4, 1fr); gap:10px;">
+                <!-- JS 填充 -->
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">播放设置 (拖拽调整顺序)</div>
+            <div class="sortable-list" id="sort-dir-key">
+                <div class="sortable-item" draggable="true" data-val="asc">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-key" value="asc" checked> 上行</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="desc">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-key" value="desc" checked> 下行</label>
+                </div>
+                <div class="sortable-item" draggable="true" data-val="harm">
+                    <span class="sortable-handle">☰</span>
+                    <label style="margin:0; cursor:inherit;"><input type="checkbox" class="play-dir-key" value="harm" checked> 和声</label>
+                </div>
+            </div>
+
+            <div class="flex-row" style="margin-top:15px;">
+                <span>速度(ms):</span> <input type="number" id="speed-key" value="400" step="50" style="width:60px">
+                <span>间隔(s):</span> <input type="number" id="gap-key" value="0.5" step="0.5" style="width:60px">
+            </div>
+        </div>
+        
+        <div class="status-box" style="margin:0; background:#f0f8ff; border:1px dashed #bddaf9; color:#4a69bd;">
+            提示：请确保输入法已切换为英文模式，否则按键可能无效。
         </div>
     </div>
 
@@ -436,6 +544,24 @@ const DEFAULT_CHORDS = [
     let activeOscs = [];
     let masterVolume = 0.5; // 全局音量 (0.0 - 1.0)
     
+    // --- 采样器数据 ---
+    const BASE_SAMPLE_URL = "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/";
+    const PIANO_SAMPLE_MAP = {
+        36: "C2.mp3", 39: "Ds2.mp3", 42: "Fs2.mp3", 45: "A2.mp3",
+        48: "C3.mp3", 51: "Ds3.mp3", 54: "Fs3.mp3", 57: "A3.mp3",
+        60: "C4.mp3", 63: "Ds4.mp3", 66: "Fs4.mp3", 69: "A4.mp3",
+        72: "C5.mp3", 75: "Ds5.mp3", 78: "Fs5.mp3", 81: "A5.mp3",
+        84: "C6.mp3", 87: "Ds6.mp3", 90: "Fs6.mp3", 93: "A6.mp3",
+        96: "C7.mp3", 99: "Ds7.mp3", 102: "Fs7.mp3", 105: "A7.mp3"
+    };
+    
+    let samplerState = {
+        buffers: {}, 
+        loading: false,
+        loaded: false,
+        timbre: 'osc' // 'osc' | 'piano'
+    };
+
     // 语音支持
     let availableVoices = [];
     function loadVoices() {
@@ -462,11 +588,64 @@ const DEFAULT_CHORDS = [
         max: 1,
         lastData: null
     };
+    
+    // Tab 6 键盘映射数据
+    const KEY_MAPPINGS = [
+        { key: '1', semi: 1 }, { key: '2', semi: 2 }, { key: '3', semi: 3 }, { key: '4', semi: 4 },
+        { key: '5', semi: 5 }, { key: '6', semi: 6 }, { key: '7', semi: 7 }, { key: '8', semi: 8 },
+        { key: '9', semi: 9 }, { key: '0', semi: 10 }, { key: '-', semi: 11 }, { key: '=', semi: 12 }
+    ];
+    let currentKeyInt = null; // 当前键盘模式选中的音程 {semi: 1, name: "..."}
 
     // --- 初始化 ---
     window.onload = function() {
         initUI();
+        initDragSort();
     };
+
+    function initDragSort() {
+        const containers = document.querySelectorAll('.sortable-list');
+        containers.forEach(container => {
+            container.addEventListener('dragstart', e => {
+                if (e.target.classList.contains('sortable-item')) {
+                    e.target.classList.add('dragging');
+                }
+            });
+            
+            container.addEventListener('dragend', e => {
+                if (e.target.classList.contains('sortable-item')) {
+                    e.target.classList.remove('dragging');
+                    saveSettings(); // 顺序改变后保存
+                }
+            });
+            
+            container.addEventListener('dragover', e => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(container, e.clientX);
+                const draggable = container.querySelector('.dragging');
+                if (afterElement == null) {
+                    container.appendChild(draggable);
+                } else {
+                    container.insertBefore(draggable, afterElement);
+                }
+            });
+        });
+    }
+
+    function getDragAfterElement(container, x) {
+        const draggableElements = [...container.querySelectorAll('.sortable-item:not(.dragging)')];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            // 检查水平中心点
+            const offset = x - box.left - box.width / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
 
     function initUI() {
         // 0. 音量控制
@@ -477,6 +656,16 @@ const DEFAULT_CHORDS = [
             masterVolume = parseFloat(this.value);
             volDisplay.innerText = Math.round(masterVolume * 100) + '%';
             saveSettings(); // 音量变动也保存
+        };
+        
+        // 0.1 音色控制
+        const timbreSel = document.getElementById('timbre-select');
+        timbreSel.onchange = function() {
+            samplerState.timbre = this.value;
+            if(this.value === 'piano' && !samplerState.loaded) {
+                loadPianoSamples();
+            }
+            saveSettings();
         };
 
         // 1. 根音范围
@@ -513,6 +702,22 @@ const DEFAULT_CHORDS = [
             });
         });
 
+        // 4.5. 填充 Tab 6 的按键显示
+        const keyMapContainer = document.getElementById('key-map-display');
+        KEY_MAPPINGS.forEach(km => {
+            const intObj = INTERVALS.find(i => i.semitones === km.semi);
+            const div = document.createElement('div');
+            div.className = 'key-card';
+            div.style.cssText = "background:#fff; border:1px solid #ddd; border-radius:6px; padding:10px; text-align:center; cursor:pointer; transition:all 0.1s;";
+            div.innerHTML = `<div style="font-weight:bold; font-size:1.2rem; color:var(--primary);">${km.key}</div><div style="font-size:0.8rem; color:#666;">${intObj.name}</div>`;
+            div.id = `key-card-${km.key}`; // 用于高亮
+            
+            // 点击也可以触发
+            div.onmousedown = function() { triggerKeyInterval(km.key); };
+            
+            keyMapContainer.appendChild(div);
+        });
+
         // 4. 填充和弦列表 (已移至 renderChordSelectors)
         renderChordSelectors();
 
@@ -532,6 +737,15 @@ const DEFAULT_CHORDS = [
             } else if (e.code === 'ArrowDown') {
                 e.preventDefault();
                 adjustVolume(-0.05);
+            } else if (currentTab === 'keyboard-mode') {
+                // 键盘模式按键处理
+                // 处理 1-9, 0, -, =
+                const key = e.key; 
+                // 兼容处理：有些键盘 - 是 Minus, = 是 Equal
+                if (KEY_MAPPINGS.find(k => k.key === key)) {
+                    e.preventDefault(); // 防止触发浏览器快捷键
+                    triggerKeyInterval(key);
+                }
             }
         });
 
@@ -552,11 +766,12 @@ const DEFAULT_CHORDS = [
         const ids = [
             'range-min', 'range-max', 
             'speed-loop', 'gap-loop', 'seq-mode-int', 'repeat-loop-int',
-            'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'repeat-loop-chord',
+            'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'repeat-loop-chord', 'chord-dur-loop',
             'speak-root-int', 'quiz-int-mode', 'gap-quiz-int', 'repeat-quiz-int',
             'speak-root-chord', 'inv-quiz', 'gap-quiz-chord', 'repeat-quiz-chord',
             'note-dur-quiz', 'gap-quiz-note', 'repeat-quiz-note',
-            'vol-slider' // 保存音量
+            'vol-slider', 'timbre-select', // 保存音量和音色
+            'key-loop-mode', 'speed-key', 'gap-key' // Tab 6 设置
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -582,11 +797,15 @@ const DEFAULT_CHORDS = [
 
         // 4. 保存各种列表复选框
         settings.intListLoop = getCheckedValues('#int-list-loop input');
-        settings.playDirLoop = getCheckedValues('.play-dir-loop');
+        // 保存排序后的顺序
+        settings.playDirLoop = getOrderedValues('#sort-dir-loop'); 
+        
         settings.chordListLoop = getCheckedValues('#chord-list-loop input');
-        settings.chordDirLoop = getCheckedValues('.chord-dir-loop');
+        settings.chordDirLoop = getOrderedValues('#sort-dir-chord');
+        
         settings.intListQuiz = getCheckedValues('#int-list-quiz input');
         settings.chordListQuiz = getCheckedValues('#chord-list-quiz input');
+        settings.playDirKey = getOrderedValues('#sort-dir-key');
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     }
@@ -597,6 +816,27 @@ const DEFAULT_CHORDS = [
             .map(el => el.value);
     }
 
+    // 获取排序后的选中值
+    function getOrderedValues(containerId) {
+        const container = document.querySelector(containerId);
+        if(!container) return [];
+        return Array.from(container.querySelectorAll('.sortable-item'))
+            .filter(item => item.querySelector('input').checked)
+            .map(item => item.dataset.val);
+    }
+    
+    // 获取排序后的所有 item 值（用于恢复顺序）
+    function getOrderedAllItems(containerId) {
+        const container = document.querySelector(containerId);
+        if(!container) return [];
+        return Array.from(container.querySelectorAll('.sortable-item')).map(item => item.dataset.val);
+    }
+
+    // 保存当前 UI 的顺序状态
+    function saveSortOrder(containerId) {
+        return getOrderedAllItems(containerId);
+    }
+
     function loadSettings() {
         const json = localStorage.getItem(STORAGE_KEY);
         if(!json) return;
@@ -604,10 +844,26 @@ const DEFAULT_CHORDS = [
         let settings;
         try { settings = JSON.parse(json); } catch(e) { return; }
 
+        // --- 恢复排序顺序 ---
+        // 我们需要额外保存一种数据结构来记录顺序，或者直接利用 saveSettings 里保存的选中值的顺序？
+        // 实际上 saveSettings 只保存了选中的值和它们的顺序。
+        // 如果我们只用 settings.playDirLoop 来恢复，未选中的项会丢失或者跑到最后。
+        // 为了完美体验，我们最好保存完整的列表顺序。
+        // 但这里为了简化，我们假设用户关心的主要是选中的项的顺序。
+        // 为了严谨，我们改进 saveSettings 策略：
+        // 在 saveSettings 中，我们除了保存选中的值，还可以额外保存一个 `Order` 字段。
+        // 但由于这是一个纯前端单文件，我们可以尝试更简单的做法：
+        // 利用 `settings.playDirLoop` (数组) 的顺序来重新排列 DOM 元素。
+        // 那些不在 `settings.playDirLoop` 中的元素（即未选中的），我们把它们放到后面去。
+
+        if (settings.playDirLoop) restoreSortAndCheck('#sort-dir-loop', settings.playDirLoop);
+        if (settings.chordDirLoop) restoreSortAndCheck('#sort-dir-chord', settings.chordDirLoop);
+        if (settings.playDirKey) restoreSortAndCheck('#sort-dir-key', settings.playDirKey);
+
         // 恢复简单 ID
         for(let key in settings) {
             // 跳过复杂对象
-            if(['currentTab', 'rootNotes', 'intListLoop', 'playDirLoop', 'chordListLoop', 'chordDirLoop', 'intListQuiz', 'chordListQuiz', 'customChords'].includes(key)) continue;
+            if(['currentTab', 'rootNotes', 'intListLoop', 'playDirLoop', 'chordListLoop', 'chordDirLoop', 'intListQuiz', 'chordListQuiz', 'customChords', 'playDirKey'].includes(key)) continue;
             
             const el = document.getElementById(key);
             if(el) {
@@ -618,6 +874,12 @@ const DEFAULT_CHORDS = [
                 if(key === 'vol-slider') {
                     masterVolume = parseFloat(settings[key]);
                     document.getElementById('vol-display').innerText = Math.round(masterVolume * 100) + '%';
+                }
+                
+                // 特殊处理音色恢复
+                if(key === 'timbre-select') {
+                    samplerState.timbre = settings[key];
+                    if(samplerState.timbre === 'piano') loadPianoSamples();
                 }
             }
         }
@@ -647,11 +909,47 @@ const DEFAULT_CHORDS = [
 
         // 恢复列表复选框
         restoreChecks('#int-list-loop input', settings.intListLoop);
-        restoreChecks('.play-dir-loop', settings.playDirLoop);
+        // restoreChecks('.play-dir-loop', settings.playDirLoop); // 由 restoreSortAndCheck 处理
         restoreChecks('#chord-list-loop input', settings.chordListLoop);
-        restoreChecks('.chord-dir-loop', settings.chordDirLoop);
+        // restoreChecks('.chord-dir-loop', settings.chordDirLoop); // 由 restoreSortAndCheck 处理
         restoreChecks('#int-list-quiz input', settings.intListQuiz);
         restoreChecks('#chord-list-quiz input', settings.chordListQuiz);
+        // restoreChecks('.play-dir-key', settings.playDirKey); // 由 restoreSortAndCheck 处理
+    }
+
+    function restoreSortAndCheck(containerSelector, orderedValues) {
+        const container = document.querySelector(containerSelector);
+        if (!container || !Array.isArray(orderedValues)) return;
+        
+        // 1. 获取现有 DOM 元素 map
+        const itemMap = {};
+        const items = Array.from(container.querySelectorAll('.sortable-item'));
+        items.forEach(item => {
+            const val = item.dataset.val;
+            itemMap[val] = item;
+            // 默认先设为不选中，后续根据 orderedValues 状态来 check
+            // 但注意：orderedValues 只包含选中的值。所以不在 orderedValues 里的我们要设为 unchecked
+            const cb = item.querySelector('input');
+            if(cb) cb.checked = false; 
+        });
+
+        // 2. 清空容器
+        container.innerHTML = '';
+
+        // 3. 先添加有序且选中的
+        orderedValues.forEach(val => {
+            const item = itemMap[val];
+            if (item) {
+                item.querySelector('input').checked = true;
+                container.appendChild(item);
+                delete itemMap[val]; // 标记已处理
+            }
+        });
+
+        // 4. 添加剩下的（未选中的）
+        for (let val in itemMap) {
+            container.appendChild(itemMap[val]);
+        }
     }
 
     function restoreChecks(selector, values) {
@@ -757,6 +1055,32 @@ const DEFAULT_CHORDS = [
         // if(audioCtx && audioCtx.state === 'running') playTone(440, audioCtx.currentTime, 0.1, 0.1); 
     }
 
+    function triggerKeyInterval(key) {
+        const mapping = KEY_MAPPINGS.find(k => k.key === key);
+        if(!mapping) return;
+        
+        // 高亮 UI
+        document.querySelectorAll('.key-card').forEach(el => el.style.background = '#fff');
+        const card = document.getElementById(`key-card-${key}`);
+        if(card) card.style.background = '#ffeaa7';
+
+        const intObj = INTERVALS.find(i => i.semitones === mapping.semi);
+        currentKeyInt = intObj;
+
+        // 如果是停止状态，开始播放
+        // 如果是播放状态，立即切歌 (重置)
+        if (!isPlaying) {
+             start(); // start 会调用 nextRound(0) -> 路由到 logicKeyboardMode
+        } else {
+            // 强制重开一轮，实现“立即切换”
+            clearTimeout(timeoutId);
+            activeOscs.forEach(o => { try{o.stop()}catch(e){} });
+            activeOscs = [];
+            // 如果已经在播放且只是切换音程，我们保持 isPlaying = true，直接调 nextRound
+            nextRound(0);
+        }
+    }
+
     // --- Tab 切换 ---
     window.switchTab = function(tabId) {
         if(isPlaying) stop();
@@ -791,6 +1115,43 @@ const DEFAULT_CHORDS = [
         if(audioCtx.state === 'suspended') audioCtx.resume();
     }
 
+    // --- 采样器逻辑 ---
+    async function loadPianoSamples() {
+        if(samplerState.loaded || samplerState.loading) return;
+        
+        initAudio(); 
+        samplerState.loading = true;
+        
+        // UI 反馈
+        const sel = document.getElementById('timbre-select');
+        if(sel) sel.disabled = true;
+        updateStatus("⏳ 正在下载钢琴音色...", "首次加载需要几秒钟 (约2MB)");
+        
+        const promises = Object.entries(PIANO_SAMPLE_MAP).map(async ([midi, filename]) => {
+            try {
+                const response = await fetch(BASE_SAMPLE_URL + filename);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                samplerState.buffers[midi] = audioBuffer;
+            } catch(e) {
+                console.warn(`Failed to load sample ${midi}:`, e);
+            }
+        });
+        
+        try {
+            await Promise.all(promises);
+            samplerState.loaded = true;
+            updateStatus("🎹 钢琴音色就绪", "开始训练吧");
+        } catch(e) {
+            alert("音色加载失败，请检查网络");
+            samplerState.timbre = 'osc';
+            if(sel) sel.value = 'osc';
+        } finally {
+            samplerState.loading = false;
+            if(sel) sel.disabled = false;
+        }
+    }
+
     function midiToName(midi) {
         const note = NOTE_NAMES[midi % 12];
         const oct = Math.floor(midi/12) - 1;
@@ -798,6 +1159,7 @@ const DEFAULT_CHORDS = [
     }
 
     function playTone(freq, start, dur, vol=0.5) {
+        // ... 原有的合成器逻辑 ...
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -817,9 +1179,55 @@ const DEFAULT_CHORDS = [
         activeOscs.push(osc);
     }
 
-    function playNote(midi, start, dur, vol=0.5) {
-        const freq = 440 * Math.pow(2, (midi-69)/12);
-        playTone(freq, start, dur/1000, vol);
+    function playSampleNote(targetMidi, start, durMs, vol=0.5) {
+        // 1. 寻找最近的采样
+        let nearestMidi = -1;
+        let minDist = 999;
+        
+        for(let m in samplerState.buffers) {
+            const dist = Math.abs(targetMidi - m);
+            if(dist < minDist) {
+                minDist = dist;
+                nearestMidi = parseInt(m);
+            }
+        }
+        
+        if(nearestMidi === -1) return; // 未加载或加载失败
+        
+        const buffer = samplerState.buffers[nearestMidi];
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        
+        // 2. 变调: 2^(delta/12)
+        const detune = (targetMidi - nearestMidi) * 100;
+        source.detune.value = detune;
+        
+        // 3. 包络
+        const gainNode = audioCtx.createGain();
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        const finalVol = vol * masterVolume * 1.5; // 钢琴采样通常比合成器小，稍微放大
+        const durSec = durMs / 1000;
+        
+        gainNode.gain.setValueAtTime(0, start);
+        gainNode.gain.linearRampToValueAtTime(finalVol, start + 0.02);
+        // 并在结束时快速衰减，防止咔哒声
+        gainNode.gain.setValueAtTime(finalVol, start + durSec); 
+        gainNode.gain.exponentialRampToValueAtTime(0.001, start + durSec + 0.2);
+        
+        source.start(start);
+        source.stop(start + durSec + 0.5); // 多留一点尾音
+    }
+
+    function playNote(midi, start, durMs, vol=0.5) {
+        if (samplerState.timbre === 'piano' && samplerState.loaded) {
+            playSampleNote(midi, start, durMs, vol);
+        } else {
+            // 回退到合成器
+            const freq = 440 * Math.pow(2, (midi-69)/12);
+            playTone(freq, start, durMs/1000, vol);
+        }
     }
 
     function speak(text) {
@@ -909,8 +1317,66 @@ const DEFAULT_CHORDS = [
                 case 'interval-quiz': logicIntervalQuiz(); break;
                 case 'chord-quiz': logicChordQuiz(); break;
                 case 'note-quiz': logicNoteQuiz(); break;
+                case 'keyboard-mode': logicKeyboardMode(); break;
             }
         }, delay);
+    }
+
+    // --- 逻辑 6: 键盘控制模式 ---
+    function logicKeyboardMode() {
+        if (!currentKeyInt) {
+            updateStatus("请按键 1-0, -, =", "选择一个音程开始播放");
+            // 哪怕没有选，如果用户已经点了 Start，我们也得挂起或者 Stop?
+            // 最好是保持运行但提示
+            if(isPlaying) nextRound(500); 
+            return;
+        }
+
+        const isLoop = document.getElementById('key-loop-mode').checked;
+        const root = getValidRoot();
+        if(root === null) { alert("无有效根音"); stop(); return; }
+        
+        const note2 = root + currentKeyInt.semitones;
+        const intName = currentKeyInt.name;
+
+        // 方向
+        const dirs = getOrderedValues('#sort-dir-key'); // 获取排序后的选中项
+        if(dirs.length === 0) { alert("请选择方向"); stop(); return; }
+        const mode = dirs[Math.floor(Math.random()*dirs.length)];
+
+        // 播放
+        const speed = parseInt(document.getElementById('speed-key').value);
+        const gap = parseFloat(document.getElementById('gap-key').value) * 1000;
+        const now = audioCtx.currentTime;
+        let dur = 0;
+
+        if(mode === 'asc') {
+            playNote(root, now, speed);
+            playNote(note2, now + speed/1000, speed);
+            dur = speed * 2;
+        } else if(mode === 'desc') {
+            playNote(note2, now, speed);
+            playNote(root, now + speed/1000, speed);
+            dur = speed * 2;
+        } else {
+            playNote(root, now, speed*1.5);
+            playNote(note2, now, speed*1.5);
+            dur = speed * 1.5;
+        }
+
+        updateStatus(`${midiToName(root)} -> ${intName}`, `模式: ${mode} ${isLoop ? '(循环)' : '(单次)'}`);
+
+        // 决定下一轮
+        if (isLoop) {
+            nextRound(dur + gap);
+        } else {
+            // 单次模式：播放完后自动停止
+            // 我们不能立即调 stop()，否则声音会被切断
+            // 使用 timeout 在声音结束后 stop
+            timeoutId = setTimeout(() => {
+                stop();
+            }, dur + gap + 100);
+        }
     }
 
     // --- 逻辑 1: 音程循环 (修改版) ---
@@ -951,9 +1417,9 @@ const DEFAULT_CHORDS = [
                 intName = INTERVALS.find(i => i.semitones === semitones).name;
                 note2 = root + semitones;
 
-                const dirs = Array.from(document.querySelectorAll('.play-dir-loop:checked')).map(c=>c.value);
+                const dirs = getOrderedValues('#sort-dir-loop'); // 获取排序后的选中项
                 if(dirs.length === 0) { alert("请选择方向"); stop(); return; }
-
+                
                 if (isSeqMode) {
                     sequenceState.queue = dirs;
                     sequenceState.index = 0;
@@ -963,6 +1429,8 @@ const DEFAULT_CHORDS = [
                     sequenceState.index++;
                 } else {
                     sequenceState.queue = [];
+                    // 随机模式是否也要遵循权重的随机？原逻辑是纯随机。
+                    // 保持纯随机，或者可以按顺序随机？这里保持纯随机
                     mode = dirs[Math.floor(Math.random()*dirs.length)];
                 }
             }
@@ -1054,7 +1522,7 @@ const DEFAULT_CHORDS = [
                 notes = rawNotes.slice(0, maxNotes);
 
                 // 确定方向
-                const modes = Array.from(document.querySelectorAll('.chord-dir-loop:checked')).map(c=>c.value);
+                const modes = getOrderedValues('#sort-dir-chord'); // 获取排序后的选中项
                 if(modes.length === 0) { alert("请选择模式"); stop(); return; }
 
                 if (isSeqMode) {
@@ -1078,13 +1546,14 @@ const DEFAULT_CHORDS = [
         }
 
         const speed = parseInt(document.getElementById('arp-speed-loop').value);
+        const chordDur = parseInt(document.getElementById('chord-dur-loop').value) || 1200;
         const gap = parseFloat(document.getElementById('chord-gap-loop').value) * 1000;
         const now = audioCtx.currentTime;
         let dur = 0;
 
         if(mode === 'harmonic') {
-            notes.forEach(n => playNote(n, now, 1200, 0.6/notes.length));
-            dur = 1200;
+            notes.forEach(n => playNote(n, now, chordDur, 0.6/notes.length));
+            dur = chordDur;
         } else if (mode === 'up') {
             notes.forEach((n,i) => playNote(n, now + i*speed/1000, speed+100));
             dur = notes.length * speed + 100;
