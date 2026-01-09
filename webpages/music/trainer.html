@@ -593,6 +593,7 @@ const DEFAULT_CHORDS = [
     // --- 状态变量 ---
     let customChords = []; // 新增：自定义和弦列表
     let audioCtx;
+    let userInteracted = false; // Brave/Chrome autoplay gate
     let isPlaying = false;
     let currentTab = 'interval-loop';
     let timeoutId = null;
@@ -640,6 +641,29 @@ const DEFAULT_CHORDS = [
     function loadVoices() {
         if(!window.speechSynthesis) return;
         availableVoices = window.speechSynthesis.getVoices();
+        console.log('[TTS] loadVoices ->', availableVoices.map(v=>`${v.name}(${v.lang})`));
+    }
+    // 等待 voices 可用，防止有些浏览器首次为空
+    function ensureVoicesReady(timeout = 1200) {
+        return new Promise(resolve => {
+            loadVoices();
+            if (availableVoices.length > 0) return resolve();
+            
+            const timer = setTimeout(() => {
+                loadVoices();
+                console.log('[TTS] ensureVoicesReady timeout, voices:', availableVoices.length);
+                resolve();
+            }, timeout);
+            
+            const handler = () => {
+                loadVoices();
+                clearTimeout(timer);
+                window.speechSynthesis.onvoiceschanged = null;
+                console.log('[TTS] onvoiceschanged fired, voices:', availableVoices.length);
+                resolve();
+            };
+            window.speechSynthesis.onvoiceschanged = handler;
+        });
     }
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -797,8 +821,17 @@ const DEFAULT_CHORDS = [
         document.getElementById('btn-toggle').onclick = togglePlay;
         
         // 绑定空格键和音量键
+        const markUserGesture = () => {
+            if (!userInteracted) {
+                userInteracted = true;
+                initAudio();
+                console.log('[Audio] user gesture detected, audio unlocked');
+            }
+        };
+        
         document.addEventListener('keydown', function(e) {
             if (e.target.tagName === 'INPUT') return; // 输入框时不触发
+            markUserGesture();
 
             if (e.code === 'Space') {
                 e.preventDefault(); 
@@ -826,6 +859,11 @@ const DEFAULT_CHORDS = [
         
         // 6. 自动保存 (页面关闭或刷新前)
         window.addEventListener('beforeunload', saveSettings);
+
+        // 7. 解锁音频的通用手势绑定（鼠标/触摸）
+        ['mousedown','touchstart'].forEach(ev => {
+            document.addEventListener(ev, markUserGesture, { once: true, passive: true });
+        });
     }
 
     // --- 数据持久化 (新增) ---
@@ -1183,8 +1221,16 @@ const DEFAULT_CHORDS = [
 
     // --- 音频引擎 ---
     function initAudio() {
+        // 必须在用户手势后调用，否则 Brave/Chromium 会阻止
+        if (!userInteracted) {
+            console.warn('[Audio] initAudio skipped, waiting for user gesture');
+            return null;
+        }
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if(audioCtx.state === 'suspended') audioCtx.resume();
+        if(audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(err => console.warn('[Audio] resume failed', err));
+        }
+        return audioCtx;
     }
 
     // --- 采样器逻辑 ---
@@ -1192,10 +1238,14 @@ const DEFAULT_CHORDS = [
         if(instrumentId === 'osc') return;
         if(samplerState.loaded[instrumentId] || samplerState.loading[instrumentId]) return;
         
+        // 若无用户手势，跳过，待用户操作后再加载
+        if (!initAudio()) {
+            console.warn('[Audio] loadInstrumentSamples postponed until user gesture');
+            return;
+        }
         const cfg = INSTRUMENT_CONFIGS[instrumentId];
         if(!cfg) { console.warn('Unknown instrument', instrumentId); return; }
         
-        initAudio(); 
         samplerState.loading[instrumentId] = true;
         
         // UI 反馈
@@ -1312,21 +1362,85 @@ const DEFAULT_CHORDS = [
         }
     }
 
-    function speak(text) {
-        if(!window.speechSynthesis) return;
+    function translateToEnglish(text) {
+        // 简单关键字替换，便于英文语音朗读
+        const map = [
+            ['小', 'minor '],
+            ['大', 'major '],
+            ['增', 'augmented '],
+            ['减', 'diminished '],
+            ['属', 'dominant '],
+            ['纯', 'perfect '],
+            ['挂四', 'sus4'],
+            ['挂二', 'sus2'],
+            ['和弦', ''],
+            ['音程', 'interval'],
+            ['音', ''],
+            ['度', ''],
+            ['升', 'sharp '],
+            ['降', 'flat '],
+            ['十五', '15'],
+            ['十三', '13'],
+            ['十二', '12'],
+            ['十一', '11'],
+            ['十', '10'],
+            ['九', '9'],
+            ['八', '8'],
+            ['七', '7'],
+            ['六', '6'],
+            ['五', '5'],
+            ['四', '4'],
+            ['三', '3'],
+            ['二', '2'],
+            ['一', '1'],
+        ];
+        let t = text;
+        map.forEach(([cn, en]) => { t = t.replace(new RegExp(cn, 'g'), en); });
+        // 去掉多余空格
+        return t.replace(/\s+/g, ' ').trim() || text;
+    }
+
+    async function speak(text) {
+        if(!window.speechSynthesis) {
+            console.warn('[TTS] speechSynthesis not supported');
+            return;
+        }
+        // 某些浏览器在未互动或页面切后台后会暂停，需要先 resume
+        try { window.speechSynthesis.resume(); } catch(e) { console.warn('[TTS] resume failed', e); }
+        await ensureVoicesReady();
+        if (availableVoices.length === 0) {
+            // 再等一轮更长的时间
+            await ensureVoicesReady(3000);
+        }
         window.speechSynthesis.cancel();
         
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'zh-CN';
         
         // 尝试加载语音（如果尚未加载）
         if(availableVoices.length === 0) loadVoices();
         
         // 查找中文语音
-        const zhVoice = availableVoices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
-        if (zhVoice) u.voice = zhVoice;
+        const zhVoice = availableVoices.find(v => v.lang && (v.lang.includes('zh') || v.lang.includes('CN')));
+        const enVoice = availableVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+        let finalText = text;
+        if (zhVoice) {
+            u.voice = zhVoice;
+            u.lang = zhVoice.lang || 'zh-CN';
+            console.log('[TTS] using zh voice', zhVoice.name, zhVoice.lang);
+        } else if (enVoice) {
+            u.voice = enVoice;
+            u.lang = enVoice.lang || 'en-US';
+            finalText = translateToEnglish(text);
+            console.warn('[TTS] no zh voice found, using en voice', enVoice.name, enVoice.lang, 'translated:', finalText);
+        } else {
+            u.lang = 'en-US'; // fallback 防止空
+            finalText = translateToEnglish(text);
+            console.warn('[TTS] no zh/en voice found, using default lang en-US, translated:', finalText);
+        }
         
         u.rate = 1.0;
+        console.log('[TTS] speak:', finalText, 'lang:', u.lang);
+        u.text = finalText;
         window.speechSynthesis.speak(u);
     }
 
@@ -1376,11 +1490,16 @@ const DEFAULT_CHORDS = [
     }
 
     function getValidRoot() {
-        const min = parseInt(document.getElementById('range-min').value);
-        const max = parseInt(document.getElementById('range-max').value);
+        // 处理异常：localStorage 旧值可能为空/NaN
+        let min = parseInt(document.getElementById('range-min').value);
+        let max = parseInt(document.getElementById('range-max').value);
+        if (Number.isNaN(min)) min = 48; // C3
+        if (Number.isNaN(max)) max = 84; // C6
+        if (min > max) [min, max] = [max, min]; // 防止上下限反转
+
         const allowedPCs = Array.from(document.querySelectorAll('.note-check.checked')).map(el => parseInt(el.dataset.val));
-        
         if(allowedPCs.length === 0) return null;
+
         let pool = [];
         for(let i=min; i<=max; i++) {
             if(allowedPCs.includes(i % 12)) pool.push(i);
