@@ -420,10 +420,54 @@
             </div>
             
             <div class="section-title" style="margin-top:20px;">高级 Voicing 设置</div>
-            <div class="flex-row">
+            <div class="flex-row" style="margin-bottom:10px;">
                 <label><input type="checkbox" id="inv-loop" checked> 允许转位</label>
                 <label><input type="checkbox" id="double-loop"> 允许八度重复</label>
-                <span>音数上限: <input type="number" id="max-notes-loop" value="4" min="3" max="8" style="width:50px"></span>
+            </div>
+            <div class="flex-row" style="margin-bottom:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px;">
+                <span style="font-size:0.9rem; margin-right:10px;">音数模式:</span>
+                <select id="note-count-mode" style="width:100px;">
+                    <option value="fixed">固定上限</option>
+                    <option value="random" selected>随机</option>
+                </select>
+                <span style="margin-left:10px;">音数上限: <input type="number" id="max-notes-loop" value="4" min="2" max="8" style="width:50px"></span>
+                <span style="margin-left:10px;">音数下限: <input type="number" id="min-notes-loop" value="3" min="2" max="6" style="width:50px"></span>
+            </div>
+            <div class="flex-row" style="margin-bottom:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px;">
+                <span style="font-size:0.9rem; margin-right:10px;">转位策略:</span>
+                <select id="inv-strategy" style="width:140px;">
+                    <option value="simple">简单转位</option>
+                    <option value="smart">智能转位</option>
+                    <option value="voice-leading">声部导向</option>
+                    <optgroup label="─── 爵士 Voicing ───">
+                        <option value="drop2">Drop 2</option>
+                        <option value="drop3">Drop 3</option>
+                        <option value="drop24">Drop 2+4</option>
+                        <option value="rootless-a">Rootless A (3-5-7-9)</option>
+                        <option value="rootless-b">Rootless B (7-9-3-5)</option>
+                        <option value="quartal">四度堆叠 (Quartal)</option>
+                        <option value="shell">Shell Voicing</option>
+                        <option value="spread">Spread (开放)</option>
+                        <option value="cluster">Cluster (密集)</option>
+                        <option value="so-what">So What</option>
+                        <option value="kenny-barron">Kenny Barron</option>
+                        <option value="red-garland">Red Garland (左手)</option>
+                        <option value="jazz-random" selected>爵士随机</option>
+                    </optgroup>
+                </select>
+                <label style="margin-left:15px;">
+                    <input type="checkbox" id="range-optimize" checked> 音域优化
+                </label>
+            </div>
+            <div class="flex-row" style="margin-bottom:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px;">
+                <span style="font-size:0.9rem; margin-right:10px;">音级显示:</span>
+                <select id="degree-display-mode" style="width:160px;">
+                    <option value="semitone">半音数 (0-4-7-11)</option>
+                    <option value="interval-en" selected>音程符号 (R-M3-P5-M7)</option>
+                    <option value="interval-cn">音程中文 (根-大三-纯五-大七)</option>
+                    <option value="scale-degree">级数 (1-3-5-7)</option>
+                    <option value="solfege">唱名 (do-mi-sol-si)</option>
+                </select>
             </div>
         </div>
     </div>
@@ -826,6 +870,11 @@ const DEFAULT_CHORDS = [
                 userInteracted = true;
                 initAudio();
                 console.log('[Audio] user gesture detected, audio unlocked');
+                
+                // 检查是否需要加载之前因无用户手势而未能加载的音色
+                if (samplerState.timbre !== 'osc' && !samplerState.loaded[samplerState.timbre]) {
+                    loadInstrumentSamples(samplerState.timbre);
+                }
             }
         };
         
@@ -876,7 +925,8 @@ const DEFAULT_CHORDS = [
         const ids = [
             'range-min', 'range-max', 
             'speed-loop', 'gap-loop', 'seq-mode-int', 'repeat-loop-int',
-            'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'repeat-loop-chord', 'chord-dur-loop',
+            'arp-speed-loop', 'chord-gap-loop', 'seq-mode-chord', 'inv-loop', 'double-loop', 'max-notes-loop', 'min-notes-loop', 'note-count-mode', 'repeat-loop-chord', 'chord-dur-loop',
+            'inv-strategy', 'range-optimize', 'degree-display-mode', // 转位设置
             'speak-root-int', 'quiz-int-mode', 'gap-quiz-int', 'repeat-quiz-int',
             'speak-root-chord', 'inv-quiz', 'gap-quiz-chord', 'repeat-quiz-chord',
             'note-dur-quiz', 'gap-quiz-note', 'repeat-quiz-note',
@@ -1444,6 +1494,618 @@ const DEFAULT_CHORDS = [
         window.speechSynthesis.speak(u);
     }
 
+    // --- 爵士 Voicing 策略 ---
+    const VOICING_NAMES = {
+        'simple': '简单转位',
+        'smart': '智能转位',
+        'voice-leading': '声部导向',
+        'drop2': 'Drop 2',
+        'drop3': 'Drop 3',
+        'drop24': 'Drop 2+4',
+        'rootless-a': 'Rootless A',
+        'rootless-b': 'Rootless B',
+        'quartal': '四度堆叠',
+        'shell': 'Shell',
+        'spread': 'Spread',
+        'cluster': 'Cluster',
+        'so-what': 'So What',
+        'kenny-barron': 'Kenny Barron',
+        'red-garland': 'Red Garland',
+        'jazz-random': '爵士随机'
+    };
+    
+    // 音程映射表
+    const INTERVAL_NAMES = {
+        // 半音数 -> [英文符号, 中文名, 级数, 唱名]
+        0:  ['R',   '根',   '1',  'do'],
+        1:  ['m2',  '小二', 'b2', 'ra'],
+        2:  ['M2',  '大二', '2',  're'],
+        3:  ['m3',  '小三', 'b3', 'me'],
+        4:  ['M3',  '大三', '3',  'mi'],
+        5:  ['P4',  '纯四', '4',  'fa'],
+        6:  ['TT',  '三全', '#4', 'fi'],
+        7:  ['P5',  '纯五', '5',  'sol'],
+        8:  ['m6',  '小六', 'b6', 'le'],
+        9:  ['M6',  '大六', '6',  'la'],
+        10: ['m7',  '小七', 'b7', 'te'],
+        11: ['M7',  '大七', '7',  'si'],
+        12: ['P8',  '八度', '8',  'do\''],
+        13: ['m9',  '小九', 'b9', 'ra\''],
+        14: ['M9',  '大九', '9',  're\''],
+        15: ['m10', '小十', 'b10','me\''],
+        16: ['M10', '大十', '10', 'mi\''],
+        17: ['P11', '十一', '11', 'fa\''],
+        18: ['#11', '升十一','#11','fi\''],
+        19: ['P12', '十二', '12', 'sol\''],
+        20: ['m13', '小十三','b13','le\''],
+        21: ['M13', '大十三','13', 'la\''],
+        22: ['m14', '小十四','b14','te\''],
+        23: ['M14', '大十四','14', 'si\''],
+        24: ['P15', '十五', '15', 'do\'\'']
+    };
+    
+    // 计算音级数（相对于根音的半音数）
+    function getIntervalDegrees(notes, root, mode = 'semitone') {
+        const semitones = notes.map(n => {
+            let semi = n - root;
+            // 处理负数（低于根音的情况）
+            while (semi < 0) semi += 12;
+            return semi;
+        });
+        
+        if (mode === 'semitone') {
+            return semitones.join('-');
+        }
+        
+        const modeIndex = {
+            'interval-en': 0,
+            'interval-cn': 1,
+            'scale-degree': 2,
+            'solfege': 3
+        }[mode] || 0;
+        
+        return semitones.map(semi => {
+            // 处理超过24半音的情况
+            const lookup = semi <= 24 ? semi : semi % 12;
+            const names = INTERVAL_NAMES[lookup];
+            if (!names) return semi.toString();
+            
+            let name = names[modeIndex];
+            // 对于超过两个八度的音，添加标记
+            if (semi > 24) {
+                const octaves = Math.floor(semi / 12);
+                if (mode === 'solfege') {
+                    name = names[modeIndex].replace(/'+$/, '') + '\''.repeat(octaves);
+                } else if (mode === 'scale-degree') {
+                    name = (parseInt(names[modeIndex].replace(/[b#]/, '')) + (octaves - 1) * 7).toString();
+                }
+            }
+            return name;
+        }).join('-');
+    }
+    
+    function applyVoicingStrategy(rawNotes, root, chordObj, strategy, targetNoteCount) {
+        let result = [...rawNotes];
+        const intervals = chordObj.int; // 原始音程数组 [0, 4, 7, 11, ...]
+        
+        switch(strategy) {
+            case 'simple':
+                // 简单转位：随机转位最低音
+                if (Math.random() > 0.5) {
+                    const lowestIndex = result.indexOf(Math.min(...result));
+                    result[lowestIndex] += 12;
+                }
+                break;
+                
+            case 'smart':
+                // 智能转位：选择最佳转位避免重复音
+                if (Math.random() > 0.5) {
+                    const inversionOptions = [];
+                    for (let i = 0; i < result.length; i++) {
+                        const testNotes = [...result];
+                        testNotes[i] += 12;
+                        testNotes.sort((a,b)=>a-b);
+                        const unique = testNotes.filter((note, idx) => testNotes.indexOf(note) === idx);
+                        const range = testNotes[testNotes.length-1] - testNotes[0];
+                        let score = unique.length * 10 + (range >= 12 && range <= 24 ? 5 : 0);
+                        inversionOptions.push({ notes: unique, score });
+                    }
+                    inversionOptions.sort((a,b) => b.score - a.score);
+                    result = inversionOptions[0].notes;
+                }
+                break;
+                
+            case 'voice-leading':
+                // 声部导向：最小化音程跳跃
+                if (Math.random() > 0.5) {
+                    const bestInv = result.map((note, idx) => {
+                        const testNotes = [...result];
+                        testNotes[idx] += 12;
+                        testNotes.sort((a,b)=>a-b);
+                        let movement = testNotes.reduce((sum, n, i) => sum + Math.abs(n - result[i]), 0);
+                        return { notes: testNotes, movement };
+                    }).sort((a,b) => a.movement - b.movement)[0];
+                    result = bestInv.notes;
+                }
+                break;
+                
+            case 'drop2':
+                // Drop 2: 密集排列后将第二高音下移八度
+                // 适合四音和弦，产生开放voicing
+                result.sort((a,b) => a-b);
+                if (result.length >= 4) {
+                    // 先构建密集排列
+                    let closed = buildClosedVoicing(result, root);
+                    // 将第二高音下移八度
+                    if (closed.length >= 2) {
+                        const secondHighest = closed[closed.length - 2];
+                        closed[closed.length - 2] = secondHighest - 12;
+                        closed.sort((a,b) => a-b);
+                    }
+                    result = closed;
+                } else {
+                    // 三音和弦：将最高音下移
+                    result[result.length - 1] -= 12;
+                    result.sort((a,b) => a-b);
+                }
+                break;
+                
+            case 'drop3':
+                // Drop 3: 将第三高音下移八度
+                result.sort((a,b) => a-b);
+                if (result.length >= 4) {
+                    let closed = buildClosedVoicing(result, root);
+                    if (closed.length >= 3) {
+                        const thirdHighest = closed[closed.length - 3];
+                        closed[closed.length - 3] = thirdHighest - 12;
+                        closed.sort((a,b) => a-b);
+                    }
+                    result = closed;
+                } else if (result.length >= 3) {
+                    result[0] -= 12;
+                    result.sort((a,b) => a-b);
+                }
+                break;
+                
+            case 'rootless-a':
+                // Rootless A (Bill Evans Type A): 省略根音，从三音开始
+                // 典型排列: 3-5-7-9 或 3-7-9
+                result = buildRootlessVoicing(root, intervals, 'A', targetNoteCount);
+                break;
+                
+            case 'rootless-b':
+                // Rootless B (Bill Evans Type B): 省略根音，从七音开始
+                // 典型排列: 7-9-3-5 或 7-3-5
+                result = buildRootlessVoicing(root, intervals, 'B', targetNoteCount);
+                break;
+                
+            case 'quartal':
+                // 四度堆叠 (Quartal Voicing): 用四度音程构建
+                // McCoy Tyner 风格
+                result = buildQuartalVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'shell':
+                // Shell Voicing: 简化voicing，只用核心音
+                // 根音 + 三音 + 七音，或省略五音
+                result = buildShellVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'drop24':
+                // Drop 2+4: 将第二和第四高音同时下移八度
+                result = buildDrop24Voicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'spread':
+                // Spread Voicing: 开放排列，音符间隔较大
+                result = buildSpreadVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'cluster':
+                // Cluster Voicing: 密集排列，所有音在一个八度内
+                result = buildClusterVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'so-what':
+                // So What Voicing: 经典 modal jazz，四度堆叠+三度
+                result = buildSoWhatVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'kenny-barron':
+                // Kenny Barron Voicing: 左手+右手分离的现代 voicing
+                result = buildKennyBarronVoicing(root, intervals, targetNoteCount);
+                break;
+                
+            case 'red-garland':
+                // Red Garland Voicing: 经典左手 voicing (1-3-7 或 1-7-3)
+                result = buildRedGarlandVoicing(root, intervals, targetNoteCount);
+                break;
+        }
+        
+        // 去重并排序
+        result = [...new Set(result)].sort((a,b) => a-b);
+        return result;
+    }
+    
+    // 构建密集排列voicing
+    function buildClosedVoicing(notes, root) {
+        // 将所有音符移到一个八度内
+        let result = notes.map(n => {
+            let normalized = ((n - root) % 12 + 12) % 12;
+            return root + normalized;
+        });
+        // 从低到高排列，超过八度的向上堆叠
+        result.sort((a,b) => a-b);
+        for (let i = 1; i < result.length; i++) {
+            while (result[i] <= result[i-1]) {
+                result[i] += 12;
+            }
+        }
+        return result;
+    }
+    
+    // 构建 Rootless Voicing
+    function buildRootlessVoicing(root, intervals, type, targetCount) {
+        // 获取和弦的关键音程
+        const has3 = intervals.includes(3) || intervals.includes(4); // m3 或 M3
+        const third = intervals.includes(3) ? 3 : (intervals.includes(4) ? 4 : null);
+        const has7 = intervals.includes(10) || intervals.includes(11); // m7 或 M7
+        const seventh = intervals.includes(10) ? 10 : (intervals.includes(11) ? 11 : null);
+        const ninth = intervals.includes(14) ? 14 : (intervals.includes(13) ? 13 : 14); // 默认大九度
+        const fifth = intervals.includes(7) ? 7 : (intervals.includes(6) ? 6 : (intervals.includes(8) ? 8 : 7));
+        
+        let result = [];
+        const baseOctave = root;
+        
+        if (type === 'A') {
+            // Type A: 3-5-7-9 (从三音开始向上)
+            if (third !== null) result.push(baseOctave + third);
+            if (fifth) result.push(baseOctave + fifth);
+            if (seventh !== null) result.push(baseOctave + seventh);
+            result.push(baseOctave + ninth); // 九音
+        } else {
+            // Type B: 7-9-3-5 (从七音开始，九音在下方八度)
+            if (seventh !== null) result.push(baseOctave + seventh - 12);
+            result.push(baseOctave + ninth - 12); // 九音下移
+            if (third !== null) result.push(baseOctave + third);
+            if (fifth) result.push(baseOctave + fifth);
+        }
+        
+        result.sort((a,b) => a-b);
+        
+        // 根据目标音数调整
+        while (result.length > targetCount && result.length > 2) {
+            // 优先移除五音
+            const fifthIndex = result.findIndex(n => (n - root) % 12 === fifth % 12);
+            if (fifthIndex !== -1) {
+                result.splice(fifthIndex, 1);
+            } else {
+                result.pop(); // 移除最高音
+            }
+        }
+        
+        return result;
+    }
+    
+    // 构建四度堆叠 Voicing（只使用和弦内音，尽量形成四度关系）
+    function buildQuartalVoicing(root, intervals, targetCount) {
+        // 获取所有和弦音（在多个八度内展开）
+        let chordTones = [];
+        for (let octave = -1; octave <= 1; octave++) {
+            intervals.forEach(i => {
+                chordTones.push(root + i + octave * 12);
+            });
+        }
+        chordTones = [...new Set(chordTones)].sort((a, b) => a - b);
+        
+        // 尝试找到最接近四度堆叠的排列
+        let bestVoicing = null;
+        let bestScore = -Infinity;
+        
+        // 从不同起始音尝试构建
+        for (let startIdx = 0; startIdx < chordTones.length; startIdx++) {
+            const startNote = chordTones[startIdx];
+            if (startNote < root - 12 || startNote > root + 12) continue;
+            
+            let voicing = [startNote];
+            let current = startNote;
+            let usedPitchClasses = new Set([intervals[chordTones.indexOf(startNote) % intervals.length] % 12]);
+            
+            // 贪心选择：每次选最接近四度(5半音)的下一个和弦音
+            while (voicing.length < targetCount && voicing.length < intervals.length) {
+                let bestNext = null;
+                let bestDiff = Infinity;
+                
+                for (const note of chordTones) {
+                    if (note <= current) continue;
+                    if (note > root + 24) continue; // 限制音域
+                    
+                    const pitchClass = ((note - root) % 12 + 12) % 12;
+                    if (usedPitchClasses.has(pitchClass)) continue; // 避免重复音级
+                    
+                    const interval = note - current;
+                    // 目标是四度(5)附近的音程
+                    const diff = Math.abs(interval - 5);
+                    
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestNext = note;
+                    }
+                }
+                
+                if (bestNext === null) break;
+                voicing.push(bestNext);
+                const pc = ((bestNext - root) % 12 + 12) % 12;
+                usedPitchClasses.add(pc);
+                current = bestNext;
+            }
+            
+            // 计算得分：音程越接近四度(5半音)越好
+            if (voicing.length >= 2) {
+                let score = voicing.length * 5; // 优先选择更多音
+                for (let i = 1; i < voicing.length; i++) {
+                    const interval = voicing[i] - voicing[i-1];
+                    score += 10 - Math.abs(interval - 5); // 越接近四度分越高
+                }
+                score += Math.random() * 2; // 随机因素
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestVoicing = voicing;
+                }
+            }
+        }
+        
+        // 回退：普通排列
+        if (!bestVoicing || bestVoicing.length < 2) {
+            bestVoicing = intervals.slice(0, targetCount).map(i => root + i);
+        }
+        
+        return bestVoicing.slice(0, targetCount);
+    }
+    
+    // 构建 Shell Voicing
+    function buildShellVoicing(root, intervals, targetCount) {
+        // Shell voicing: 根音 + 指示和弦性质的最少音符
+        let result = [root];
+        
+        // 添加三音（决定大小调）
+        const third = intervals.includes(4) ? 4 : (intervals.includes(3) ? 3 : null);
+        if (third !== null) {
+            result.push(root + third);
+        }
+        
+        // 添加七音（如果有）
+        const seventh = intervals.includes(11) ? 11 : (intervals.includes(10) ? 10 : null);
+        if (seventh !== null) {
+            // Shell voicing 通常把七音放在根音上方或下方
+            if (Math.random() > 0.5) {
+                result.push(root + seventh);
+            } else {
+                result.push(root + seventh - 12); // 七音在下方
+            }
+        }
+        
+        // 如果需要更多音，添加五音或九音
+        if (result.length < targetCount) {
+            const fifth = intervals.includes(7) ? 7 : (intervals.includes(8) ? 8 : (intervals.includes(6) ? 6 : null));
+            if (fifth !== null) result.push(root + fifth);
+        }
+        
+        if (result.length < targetCount && intervals.length > 4) {
+            // 添加九音
+            result.push(root + 14);
+        }
+        
+        result.sort((a,b) => a-b);
+        return result.slice(0, targetCount);
+    }
+    
+    // 构建 Drop 2+4 Voicing
+    function buildDrop24Voicing(root, intervals, targetCount) {
+        // Drop 2+4: 将密集排列的第二和第四高音下移八度
+        let closed = buildClosedVoicing(intervals.map(i => root + i), root);
+        
+        if (closed.length >= 4) {
+            // 下移第二高音
+            closed[closed.length - 2] -= 12;
+            // 下移第四高音
+            closed[closed.length - 4] -= 12;
+        } else if (closed.length >= 3) {
+            // 三音和弦：下移第二高音
+            closed[closed.length - 2] -= 12;
+        }
+        
+        closed.sort((a, b) => a - b);
+        return closed.slice(0, targetCount);
+    }
+    
+    // 构建 Spread Voicing（开放排列）
+    function buildSpreadVoicing(root, intervals, targetCount) {
+        // Spread: 音符间隔较大，通常跨越两个八度以上
+        let result = [];
+        const sorted = [...intervals].sort((a, b) => a - b);
+        
+        for (let i = 0; i < Math.min(sorted.length, targetCount); i++) {
+            let note = root + sorted[i];
+            // 交替放置在不同八度，形成开放排列
+            if (i % 2 === 1 && i > 0) {
+                note += 12; // 奇数位置的音上移八度
+            }
+            result.push(note);
+        }
+        
+        result.sort((a, b) => a - b);
+        return result;
+    }
+    
+    // 构建 Cluster Voicing（密集排列）
+    function buildClusterVoicing(root, intervals, targetCount) {
+        // Cluster: 所有音尽量在一个八度内密集排列
+        let result = intervals.slice(0, targetCount).map(i => {
+            let note = root + (i % 12); // 归一化到一个八度内
+            return note;
+        });
+        
+        // 确保音符不重复
+        result = [...new Set(result)];
+        
+        // 如果音数不够，从原始音程补充
+        let idx = 0;
+        while (result.length < targetCount && idx < intervals.length) {
+            const note = root + intervals[idx];
+            if (!result.includes(note) && !result.includes(note - 12) && !result.includes(note + 12)) {
+                result.push(note);
+            }
+            idx++;
+        }
+        
+        result.sort((a, b) => a - b);
+        return result.slice(0, targetCount);
+    }
+    
+    // 构建 So What Voicing
+    function buildSoWhatVoicing(root, intervals, targetCount) {
+        // So What: 经典 modal jazz voicing
+        // 结构: 三个四度 + 一个大三度 (如 E-A-D-G-B for Dm7)
+        // 只使用和弦内音来模拟这种结构
+        
+        let chordTones = [];
+        for (let octave = -1; octave <= 1; octave++) {
+            intervals.forEach(i => chordTones.push(root + i + octave * 12));
+        }
+        chordTones = [...new Set(chordTones)].sort((a, b) => a - b);
+        
+        // 尝试找到接近 So What 结构的排列（四度+四度+四度+三度）
+        const targetIntervals = [5, 5, 5, 4]; // 四度、四度、四度、大三度
+        let bestResult = null;
+        let bestScore = -Infinity;
+        
+        for (let startIdx = 0; startIdx < chordTones.length; startIdx++) {
+            const start = chordTones[startIdx];
+            if (start < root - 7 || start > root + 5) continue;
+            
+            let voicing = [start];
+            let current = start;
+            let usedPCs = new Set([((start - root) % 12 + 12) % 12]);
+            
+            for (let ti = 0; ti < targetIntervals.length && voicing.length < targetCount; ti++) {
+                const targetInt = targetIntervals[ti];
+                let bestNext = null;
+                let bestDiff = Infinity;
+                
+                for (const note of chordTones) {
+                    if (note <= current) continue;
+                    const pc = ((note - root) % 12 + 12) % 12;
+                    if (usedPCs.has(pc)) continue;
+                    
+                    const diff = Math.abs((note - current) - targetInt);
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestNext = note;
+                    }
+                }
+                
+                if (bestNext) {
+                    voicing.push(bestNext);
+                    usedPCs.add(((bestNext - root) % 12 + 12) % 12);
+                    current = bestNext;
+                }
+            }
+            
+            if (voicing.length >= Math.min(3, targetCount)) {
+                let score = voicing.length * 10 + Math.random() * 3;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestResult = voicing;
+                }
+            }
+        }
+        
+        return bestResult || intervals.slice(0, targetCount).map(i => root + i);
+    }
+    
+    // 构建 Kenny Barron Voicing
+    function buildKennyBarronVoicing(root, intervals, targetCount) {
+        // Kenny Barron: 现代爵士 voicing，通常左手三音 + 右手旋律
+        // 特点: 根音在低音，中间有空隙，高音区有色彩音
+        
+        let result = [];
+        const third = intervals.includes(4) ? 4 : (intervals.includes(3) ? 3 : null);
+        const fifth = intervals.includes(7) ? 7 : (intervals.includes(8) ? 8 : (intervals.includes(6) ? 6 : null));
+        const seventh = intervals.includes(11) ? 11 : (intervals.includes(10) ? 10 : null);
+        
+        // 低音区: 根音
+        result.push(root - 12); // 低八度根音
+        
+        // 中音区: 三音和七音（如果有）
+        if (seventh !== null) {
+            result.push(root + seventh - 12); // 七音在中低音区
+        }
+        if (third !== null) {
+            result.push(root + third); // 三音
+        }
+        
+        // 高音区: 五音或扩展音
+        if (fifth !== null && result.length < targetCount) {
+            result.push(root + fifth + 12); // 五音上移八度
+        }
+        
+        // 补充其他和弦音
+        for (const i of intervals) {
+            if (result.length >= targetCount) break;
+            const note = root + i;
+            if (!result.some(n => Math.abs(n - note) < 2 || (n % 12) === (note % 12))) {
+                result.push(note);
+            }
+        }
+        
+        result.sort((a, b) => a - b);
+        return result.slice(0, targetCount);
+    }
+    
+    // 构建 Red Garland Voicing（左手 voicing）
+    function buildRedGarlandVoicing(root, intervals, targetCount) {
+        // Red Garland: 经典左手 voicing
+        // 结构 A: 根音-三音-七音 (1-3-7)
+        // 结构 B: 根音-七音-三音 (1-7-3，七音在下方)
+        
+        let result = [];
+        const third = intervals.includes(4) ? 4 : (intervals.includes(3) ? 3 : null);
+        const seventh = intervals.includes(11) ? 11 : (intervals.includes(10) ? 10 : null);
+        const fifth = intervals.includes(7) ? 7 : (intervals.includes(8) ? 8 : (intervals.includes(6) ? 6 : null));
+        
+        // 随机选择结构 A 或 B
+        if (Math.random() > 0.5) {
+            // 结构 A: 1-3-7
+            result.push(root);
+            if (third !== null) result.push(root + third);
+            if (seventh !== null) result.push(root + seventh);
+        } else {
+            // 结构 B: 1-7-3（七音在根音上方靠近位置）
+            result.push(root);
+            if (seventh !== null) result.push(root + seventh - 12 + 12); // 确保七音在根音上方
+            if (third !== null) result.push(root + third + 12); // 三音上移
+        }
+        
+        // 如果需要更多音，添加五音
+        if (result.length < targetCount && fifth !== null) {
+            result.push(root + fifth);
+        }
+        
+        // 继续补充其他和弦音
+        for (const i of intervals) {
+            if (result.length >= targetCount) break;
+            const note = root + i;
+            if (!result.includes(note)) {
+                result.push(note);
+            }
+        }
+        
+        result.sort((a, b) => a - b);
+        return result.slice(0, targetCount);
+    }
+
     // --- 核心逻辑 ---
 
     function togglePlay() {
@@ -1682,10 +2344,10 @@ const DEFAULT_CHORDS = [
 
     // --- 逻辑 2: 和弦循环 (修改版) ---
     function logicChordLoop() {
-        let root, chordObj, notes, mode;
+        let root, chordObj, notes, mode, usedStrategy;
         
         if (loopRepeatState.count < loopRepeatState.max && loopRepeatState.lastData) {
-             ({ root, chordObj, notes, mode } = loopRepeatState.lastData);
+             ({ root, chordObj, notes, mode, usedStrategy } = loopRepeatState.lastData);
              loopRepeatState.count++;
         } else {
             const isSeqMode = document.getElementById('seq-mode-chord').checked;
@@ -1695,7 +2357,8 @@ const DEFAULT_CHORDS = [
                 // 继续序列
                 root = sequenceState.data.root;
                 chordObj = sequenceState.data.chordObj;
-                notes = sequenceState.data.notes; 
+                notes = sequenceState.data.notes;
+                usedStrategy = sequenceState.data.usedStrategy;
                 mode = sequenceState.queue[sequenceState.index];
                 sequenceState.index++;
             } else {
@@ -1713,14 +2376,59 @@ const DEFAULT_CHORDS = [
                 let rawNotes = chordObj.int.map(i => root + i);
                 const allowInv = document.getElementById('inv-loop').checked;
                 const allowDouble = document.getElementById('double-loop').checked;
-                const maxNotes = parseInt(document.getElementById('max-notes-loop').value);
+                const maxNotes = parseInt(document.getElementById('max-notes-loop').value) || 4;
+                const minNotes = parseInt(document.getElementById('min-notes-loop').value) || 3;
+                const noteCountMode = document.getElementById('note-count-mode')?.value || 'random';
+                let invStrategy = document.getElementById('inv-strategy')?.value || 'jazz-random';
+                const rangeOptimize = document.getElementById('range-optimize')?.checked || false;
                 
-                if(allowDouble && Math.random() > 0.4 && rawNotes.length < maxNotes) rawNotes.push(root+12);
-                if(allowInv && Math.random() > 0.5) {
-                    rawNotes[0] += 12;
-                    rawNotes.sort((a,b)=>a-b);
+                // 爵士随机：从爵士策略中随机选择
+                const jazzStrategies = ['drop2', 'drop3', 'drop24', 'rootless-a', 'rootless-b', 'quartal', 'shell', 'spread', 'cluster', 'so-what', 'kenny-barron', 'red-garland'];
+                if (invStrategy === 'jazz-random') {
+                    invStrategy = jazzStrategies[Math.floor(Math.random() * jazzStrategies.length)];
                 }
-                notes = rawNotes.slice(0, maxNotes);
+                // 计算目标音数
+                let targetNoteCount;
+                if (noteCountMode === 'random') {
+                    targetNoteCount = Math.floor(Math.random() * (maxNotes - minNotes + 1)) + minNotes;
+                } else {
+                    targetNoteCount = maxNotes;
+                }
+                
+                // 高级转位逻辑
+                if(allowInv) {
+                    rawNotes = applyVoicingStrategy(rawNotes, root, chordObj, invStrategy, targetNoteCount);
+                    usedStrategy = invStrategy; // 保存实际使用的策略
+                } else {
+                    usedStrategy = null; // 原位
+                }
+                
+                // 音域优化：将和弦调整到合理音域
+                if (rangeOptimize && rawNotes.length > 0) {
+                    const targetMin = 48; // C3
+                    const targetMax = 72; // C5
+                    
+                    while (rawNotes[0] < targetMin && rawNotes[rawNotes.length-1] + 12 <= targetMax) {
+                        rawNotes = rawNotes.map(note => note + 12);
+                    }
+                    while (rawNotes[rawNotes.length-1] > targetMax && rawNotes[0] - 12 >= targetMin) {
+                        rawNotes = rawNotes.map(note => note - 12);
+                    }
+                }
+                
+                // 八度重复逻辑：智能选择重复音
+                if(allowDouble && Math.random() > 0.4 && rawNotes.length < targetNoteCount) {
+                    // 优先重复根音或三音
+                    const candidates = [root, rawNotes[1], root + 12];
+                    const validDoubles = candidates.filter(note => !rawNotes.includes(note));
+                    if (validDoubles.length > 0) {
+                        rawNotes.push(validDoubles[0]);
+                        rawNotes.sort((a,b)=>a-b);
+                    }
+                }
+                
+                // 最终音数限制
+                notes = rawNotes.slice(0, targetNoteCount);
 
                 // 确定方向
                 const modes = getOrderedValues('#sort-dir-chord'); // 获取排序后的选中项
@@ -1729,7 +2437,7 @@ const DEFAULT_CHORDS = [
                 if (isSeqMode) {
                     sequenceState.queue = modes; 
                     sequenceState.index = 0;
-                    sequenceState.data = { root, chordObj, notes };
+                    sequenceState.data = { root, chordObj, notes, usedStrategy };
                     
                     mode = sequenceState.queue[sequenceState.index];
                     sequenceState.index++;
@@ -1743,7 +2451,7 @@ const DEFAULT_CHORDS = [
             const repeatInput = parseInt(document.getElementById('repeat-loop-chord').value) || 1;
             loopRepeatState.max = repeatInput;
             loopRepeatState.count = 1;
-            loopRepeatState.lastData = { root, chordObj, notes, mode };
+            loopRepeatState.lastData = { root, chordObj, notes, mode, usedStrategy };
         }
 
         const speed = parseInt(document.getElementById('arp-speed-loop').value);
@@ -1773,8 +2481,18 @@ const DEFAULT_CHORDS = [
         if (loopRepeatState.max > 1) {
             repeatTag = `<span class="seq-tag" style="background:#6c5ce7">重复 ${loopRepeatState.count}/${loopRepeatState.max}</span>`;
         }
+        
+        // 计算音级数
+        const degreeMode = document.getElementById('degree-display-mode')?.value || 'semitone';
+        const degreesStr = getIntervalDegrees(notes, root, degreeMode);
+        
+        // 转位策略名称
+        const strategyName = usedStrategy ? (VOICING_NAMES[usedStrategy] || usedStrategy) : '原位';
 
-        updateStatus(`${midiToName(root)} ${chordObj.name} ${seqTag} ${repeatTag}`, `音: ${notes.map(midiToName).join(' ')} (${mode})`);
+        updateStatus(
+            `${midiToName(root)} ${chordObj.name} ${seqTag} ${repeatTag}`, 
+            `音: ${notes.map(midiToName).join(' ')} | 音级: ${degreesStr} | ${strategyName} (${mode})`
+        );
         nextRound(dur + gap);
     }
 
