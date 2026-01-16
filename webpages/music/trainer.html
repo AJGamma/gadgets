@@ -1753,7 +1753,7 @@ const DEFAULT_CHORDS = [
         let dur = 0;
 
         if(mode === 'harmonic') {
-            notes.forEach(n => playNote(n, now, chordDur, 0.6/notes.length));
+            notes.forEach(n => playNote(n, now, chordDur, 0.5));
             dur = chordDur;
         } else if (mode === 'up') {
             notes.forEach((n,i) => playNote(n, now + i*speed/1000, speed+100));
@@ -1876,7 +1876,7 @@ const DEFAULT_CHORDS = [
             notes.forEach((n,i) => playNote(n, now + i*0.2, 600));
             dur = notes.length * 200 + 400;
         } else {
-            notes.forEach(n => playNote(n, now, 1200, 0.6/notes.length));
+            notes.forEach(n => playNote(n, now, 1200, 0.5));
             dur = 1200;
         }
 

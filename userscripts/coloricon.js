@@ -3,6 +3,7 @@
 // @match        https://chat.qwen.ai/*
 // @match        https://claude.ai/*
 // @match        https://chatgpt.com/*
+// @match        https://aistudio.google.com/*
 // @grant        none
 // ==/UserScript==
 
@@ -17,28 +18,39 @@
     return hash;
   }
 
-    function fnv1a(str) {
-      let hash = 0x811c9dc5; // FNV offset basis for 32-bit
-      for (let i = 0; i < str.length; i++) {
-        hash ^= str.charCodeAt(i);
-        hash = Math.imul(hash, 0x01000193); // FNV prime: 16777619
-      }
-      return hash >>> 0; // 转为无符号32位整数
+  function fnv1a(str) {
+    let hash = 0x811c9dc5; // FNV offset basis for 32-bit
+    for (let i = 0; i < str.length; i++) {
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193); // FNV prime: 16777619
     }
+    return hash >>> 0; // 转为无符号32位整数
+  }
 
-    function hashToColor(str) {
-      const hash = fnv1a((str || "default").trim());
-      const h = hash % 360; // HSL 规范中 H ∈ [0, 360)
-      const s = (hash % 11) * 3 + 40;
-      const l = (hash % 5) * 10 + 40;
-      return `hsl(${h}, ${s}%, ${l}%)`;
-    }
-
+  function hashToColor(str) {
+    const hash = fnv1a((str || "default").trim());
+    const h = hash % 360; // HSL 规范中 H ∈ [0, 360)
+    const s = (hash % 11) * 3 + 40;
+    const l = (hash % 5) * 10 + 40;
+    return `hsl(${h}, ${s}%, ${l}%)`;
+  }
 
   function generateQwenFavicon(color) {
     const svg = `
 <svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M174.82 108.75L155.38 75L165.64 57.75C166.46 56.31 166.46 54.53 165.64 53.09L155.38 35.84C154.86 34.91 153.87 34.33 152.78 34.33H114.88L106.14 19.03C105.62 18.1 104.63 17.52 103.54 17.52H83.3C82.21 17.52 81.22 18.1 80.7 19.03L61.26 52.77H41.02C39.93 52.77 38.94 53.35 38.42 54.28L28.16 71.53C27.34 72.97 27.34 74.75 28.16 76.19L45.52 107.5L36.78 122.8C35.96 124.24 35.96 126.02 36.78 127.46L47.04 144.71C47.56 145.64 48.55 146.22 49.64 146.22H87.54L96.28 161.52C96.8 162.45 97.79 163.03 98.88 163.03H119.12C120.21 163.03 121.2 162.45 121.72 161.52L141.16 127.78H158.52C159.61 127.78 160.6 127.2 161.12 126.27L171.38 109.02C172.2 107.58 172.2 105.8 171.38 104.36L174.82 108.75Z" fill="url(#paint0_radial)"/> <path d="M119.12 163.03H98.88L87.54 144.71H49.64L61.26 126.39H80.7L38.42 55.29H61.26L83.3 19.03L93.56 37.35L83.3 55.29H161.58L151.32 72.54L170.76 106.28H151.32L141.16 88.34L101.18 163.03H119.12Z" fill="${color}"/> <path d="M127.86 79.83H76.14L101.18 122.11L127.86 79.83Z" fill="url(#paint1_radial)"/> <defs> <radialGradient id="paint0_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(100 100) rotate(90) scale(100)"> <stop stop-color="#665CEE"/> <stop offset="1" stop-color="#332E91"/> </radialGradient> <radialGradient id="paint1_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(100 100) rotate(90) scale(100)"> <stop stop-color="#665CEE"/> <stop offset="1" stop-color="#332E91"/> </radialGradient> </defs> </svg>
         `.trim();
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  function generateGoogleFavicon(color) {
+    const svg = `
+<svg viewBox="0 0 299 310" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="299.000000" height="310.000000" fill="none">
+	<rect width="299.000000" height="310.000000" x="0.000000" y="0.000000" />
+	<rect width="299.000000" height="310.000000" x="0.000000" y="0.000000" fill="${color}" />
+	<path d="M134.863 80.0873C132.008 84.1012 129.621 88.4708 127.779 93.116L97.3872 93.116C82.9967 93.1161 71.3312 104.782 71.331 119.172L71.331 210.37C71.3313 224.761 82.9968 236.427 97.3872 236.427L188.585 236.427C202.976 236.427 214.642 224.761 214.642 210.37L214.642 170.428C219.392 167.869 223.769 164.707 227.67 161.044L227.67 210.37C227.67 231.956 210.171 249.455 188.585 249.455L97.3872 249.455C75.8015 249.455 58.3026 231.956 58.3024 210.37L58.3024 119.172C58.3025 97.5863 75.8014 80.0874 97.3872 80.0873L134.863 80.0873Z" fill="rgb(50,48,44)" fill-rule="nonzero" />
+	<path  d="M230.112 104.225C222.584 100.984 215.998 96.5384 210.35 90.8931C204.704 85.2477 200.258 78.6582 197.018 71.1302C195.774 68.245 194.774 65.2793 194.008 62.2387C193.758 61.2446 192.866 60.5448 191.842 60.5448C190.817 60.5448 189.926 61.2446 189.676 62.2387C188.91 65.2793 187.91 68.2422 186.666 71.1302C183.425 78.6582 178.98 85.2477 173.334 90.8931C167.689 96.5384 161.099 100.984 153.571 104.225C150.686 105.469 147.72 106.468 144.68 107.235C143.686 107.485 142.986 108.376 142.986 109.401C142.986 110.425 143.686 111.317 144.68 111.567C147.72 112.333 150.684 113.333 153.571 114.577C161.099 117.817 167.686 122.263 173.334 127.909C178.982 133.554 183.425 140.143 186.666 147.672C187.91 150.557 188.91 153.522 189.676 156.563C189.926 157.557 190.817 158.257 191.842 158.257C192.866 158.257 193.758 157.557 194.008 156.563C194.774 153.522 195.774 150.56 197.018 147.672C200.258 140.143 204.704 133.556 210.35 127.909C215.995 122.263 222.584 117.817 230.112 114.577C232.997 113.333 235.964 112.333 239.004 111.567C239.998 111.317 240.698 110.425 240.698 109.401C240.698 108.376 239.998 107.485 239.004 107.235C235.964 106.468 233 105.469 230.112 104.225Z" fill="rgb(50,48,44)" fill-rule="nonzero" />
+</svg>
+`.trim();
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
 
@@ -71,6 +83,8 @@
       return generateClaudeFavicon(color);
     } else if (host.includes("chatgpt.com")) {
       return generateChatGPTFavicon(color);
+    } else if (host.includes("aistudio.google.com")) {
+      return generateGoogleFavicon(color);
     }
     return generateQwenFavicon(color); // fallback
   }
@@ -81,14 +95,16 @@
     const color = hashToColor(title);
     const iconUrl = generateFavicon(color, location.hostname);
     // === 关键：移除所有已有的 favicon link ===
-    const existingIcons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
-    existingIcons.forEach(el => el.remove());
+    const existingIcons = document.querySelectorAll(
+      'link[rel="icon"], link[rel="shortcut icon"]',
+    );
+    existingIcons.forEach((el) => el.remove());
 
     // === 创建并插入新的 favicon ===
-    const newIcon = document.createElement('link');
-    newIcon.rel = 'icon';
+    const newIcon = document.createElement("link");
+    newIcon.rel = "icon";
     newIcon.href = iconUrl;
-    newIcon.type = 'image/svg+xml'; // 明确类型（可选）
+    newIcon.type = "image/svg+xml"; // 明确类型（可选）
 
     document.head.appendChild(newIcon);
 
