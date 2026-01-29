@@ -588,6 +588,10 @@
     <div class="action-bar">
         <button class="btn btn-start" id="btn-toggle">开始训练 (Space)</button>
     </div>
+    
+    <div style="padding: 10px 20px; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; color: #888; text-align: center;">
+        <span>⌨️ 快捷键: Space 播放/暂停 | ↑↓ 音量 | 🎵 媒体键: ▶️ 播放 | ⏸️ 暂停 | ⏭️ 下一个 | ⏮️ 重播</span>
+    </div>
 </div>
 
 <script>
@@ -913,6 +917,91 @@ const DEFAULT_CHORDS = [
         ['mousedown','touchstart'].forEach(ev => {
             document.addEventListener(ev, markUserGesture, { once: true, passive: true });
         });
+        
+        // 8. 媒体键支持 (Media Session API)
+        initMediaSession();
+    }
+    
+    // --- 媒体键控制 ---
+    function initMediaSession() {
+        if (!('mediaSession' in navigator)) {
+            console.log('[MediaSession] API not supported');
+            return;
+        }
+        
+        // 设置 metadata（显示在系统媒体控制中）
+        updateMediaSessionMetadata();
+        
+        // 播放/暂停
+        navigator.mediaSession.setActionHandler('play', () => {
+            console.log('[MediaSession] play');
+            if (!isPlaying) togglePlay();
+        });
+        
+        navigator.mediaSession.setActionHandler('pause', () => {
+            console.log('[MediaSession] pause');
+            if (isPlaying) togglePlay();
+        });
+        
+        // 停止
+        navigator.mediaSession.setActionHandler('stop', () => {
+            console.log('[MediaSession] stop');
+            if (isPlaying) stop();
+        });
+        
+        // 下一曲 - 跳到下一个（重新生成）
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+            console.log('[MediaSession] nexttrack');
+            if (isPlaying) {
+                // 清除当前，立即播放下一个
+                clearTimeout(timeoutId);
+                activeOscs.forEach(o => { try{o.stop()}catch(e){} });
+                activeOscs = [];
+                // 重置重复状态，强制生成新内容
+                loopRepeatState = { count: 0, max: 1, lastData: null };
+                sequenceState = { active: false, queue: [], index: 0, data: null };
+                nextRound(0);
+            }
+        });
+        
+        // 上一曲 - 重播当前
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+            console.log('[MediaSession] previoustrack');
+            if (isPlaying && loopRepeatState.lastData) {
+                // 重播当前内容
+                clearTimeout(timeoutId);
+                activeOscs.forEach(o => { try{o.stop()}catch(e){} });
+                activeOscs = [];
+                loopRepeatState.count = 0; // 重置计数，重新播放
+                nextRound(0);
+            }
+        });
+        
+        console.log('[MediaSession] initialized');
+    }
+    
+    function updateMediaSessionMetadata() {
+        if (!('mediaSession' in navigator)) return;
+        
+        const tabNames = {
+            'interval-loop': '音程循环',
+            'chord-loop': '和弦循环',
+            'interval-quiz': '音程听辨',
+            'chord-quiz': '和弦听辨',
+            'note-quiz': '单音听辨',
+            'keyboard-mode': '键盘控制'
+        };
+        
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: tabNames[currentTab] || '音乐训练',
+            artist: '音乐听力训练器',
+            album: 'Web 全能音乐听力训练器'
+        });
+    }
+    
+    function updateMediaSessionState(playing) {
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
     }
 
     // --- 数据持久化 (新增) ---
@@ -1251,6 +1340,9 @@ const DEFAULT_CHORDS = [
         event.target.classList.add('active');
         document.getElementById(tabId).classList.add('active');
         updateStatus("准备就绪", "");
+        
+        // 更新媒体会话元数据
+        updateMediaSessionMetadata();
     };
 
     function setChecks(containerId, state) {
@@ -2129,6 +2221,10 @@ const DEFAULT_CHORDS = [
         btn.innerText = "停止 (Space)";
         btn.className = "btn btn-stop";
         
+        // 更新媒体会话状态
+        updateMediaSessionState(true);
+        updateMediaSessionMetadata();
+        
         nextRound(0);
     }
 
@@ -2142,6 +2238,9 @@ const DEFAULT_CHORDS = [
         const btn = document.getElementById('btn-toggle');
         btn.innerText = "开始训练 (Space)";
         btn.className = "btn btn-start";
+        
+        // 更新媒体会话状态
+        updateMediaSessionState(false);
         
         updateStatus("已停止", "");
     }
