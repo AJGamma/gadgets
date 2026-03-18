@@ -1,3 +1,7 @@
 **/out
 keystat/__pycache__
 keystat/build
+keystat/layout
+heatmap.png
+keystat/.cache/clangd/index
+keystat/top_keys.png

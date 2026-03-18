@@ -30,6 +30,23 @@ static pthread_mutex_t stats_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char stats_file[512];
 static int pipefd[2];
 
+static const int MODIFIER_KEYS[] = {
+    KEY_LEFTCTRL, KEY_RIGHTCTRL,
+    KEY_LEFTSHIFT, KEY_RIGHTSHIFT,
+    KEY_LEFTALT, KEY_RIGHTALT,
+    KEY_LEFTMETA, KEY_RIGHTMETA,
+};
+#define NUM_MODIFIERS (sizeof(MODIFIER_KEYS) / sizeof(MODIFIER_KEYS[0]))
+
+static int modifier_state[NUM_MODIFIERS];
+
+static int get_modifier_index(int code) {
+    for (size_t i = 0; i < NUM_MODIFIERS; i++) {
+        if (MODIFIER_KEYS[i] == code) return i;
+    }
+    return -1;
+}
+
 static void signal_handler(int sig) {
     (void)sig;
     running = 0;
@@ -233,10 +250,23 @@ int main(int argc, char *argv[]) {
                 int rc = libevdev_next_event(devices[d].dev, LIBEVDEV_READ_FLAG_NORMAL, &ev);
                 
                 while (rc == LIBEVDEV_READ_STATUS_SUCCESS || rc == LIBEVDEV_READ_STATUS_SYNC) {
-                    if (ev.type == EV_KEY && ev.value == 1) {
-                        if (ev.code >= 0 && ev.code < MAX_KEYS) {
+                    if (ev.type == EV_KEY && ev.code < MAX_KEYS) {
+                        int mod_idx = get_modifier_index(ev.code);
+                        
+                        if (mod_idx >= 0) {
+                            if (ev.value == 1) {
+                                modifier_state[mod_idx] = 1;
+                            } else if (ev.value == 0) {
+                                modifier_state[mod_idx] = 0;
+                            }
+                        } else if (ev.value == 1) {
                             pthread_mutex_lock(&stats_mutex);
                             key_counts[ev.code]++;
+                            for (size_t i = 0; i < NUM_MODIFIERS; i++) {
+                                if (modifier_state[i]) {
+                                    key_counts[MODIFIER_KEYS[i]]++;
+                                }
+                            }
                             pthread_mutex_unlock(&stats_mutex);
                         }
                     }
