@@ -6,15 +6,16 @@ A transparent keyboard monitoring daemon that tracks all key presses and visuali
 
 - **Transparent Monitoring**: Uses Linux evdev interface, captures input without interfering with any applications (including input methods)
 - **Complete Coverage**: Tracks all keys including modifiers (Ctrl, Shift, Alt, Super, etc.)
-- **Persistent Storage**: Statistics survive reboots
+- **Persistent Storage**: 重启后从 `~/.local/share/keystat/stats.json` 恢复计数并继续累加
 - **Heatmap Visualization**: Generate visual heatmaps of key usage
 
 ## Requirements
 
 - Linux with evdev support
 - libevdev
-- libjson-c
 - Python 3 with matplotlib and numpy (for visualization)
+
+启动时会读取已有的 `stats.json`（若存在），在原有按键计数上继续累加；请用同一用户身份运行守护进程与可视化（依赖 `$HOME` 下的数据路径）。
 
 ## Building
 

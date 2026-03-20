@@ -12,6 +12,8 @@
 #include <libevdev/libevdev.h>
 #include <pthread.h>
 #include <time.h>
+#include <limits.h>
+#include <ctype.h>
 
 #define MAX_DEVICES 32
 #define STATS_FILE_PATH ".local/share/keystat/stats.json"
@@ -29,6 +31,7 @@ static int key_counts[MAX_KEYS];
 static pthread_mutex_t stats_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char stats_file[512];
 static int pipefd[2];
+static int foreground_mode;
 
 static const int MODIFIER_KEYS[] = {
     KEY_LEFTCTRL, KEY_RIGHTCTRL,
@@ -82,22 +85,137 @@ static char* get_stats_file_path() {
     return path;
 }
 
-static void load_stats() {
-    FILE *fp = fopen(stats_file, "r");
-    if (!fp) return;
-    
-    char line[1024];
-    while (fgets(line, sizeof(line), fp)) {
-        char key_name[128];
-        int count;
-        if (sscanf(line, "\"%127[^\"]\": %d", key_name, &count) == 2) {
-            int key_code = libevdev_event_code_from_name(EV_KEY, key_name);
-            if (key_code >= 0 && key_code < MAX_KEYS) {
-                key_counts[key_code] = count;
+/* Locate end of JSON object starting at open '{'; returns pointer to closing '}' or NULL. */
+static const char *json_object_end(const char *start) {
+    int depth = 0;
+    for (const char *p = start; *p; p++) {
+        if (*p == '{') {
+            depth++;
+        } else if (*p == '}') {
+            depth--;
+            if (depth == 0)
+                return p;
+        } else if (*p == '"') {
+            for (p++; *p && *p != '"'; p++) {
+                if (*p == '\\' && p[1])
+                    p++;
             }
         }
     }
+    return NULL;
+}
+
+static void load_stats(void) {
+    FILE *fp = fopen(stats_file, "r");
+    if (!fp) {
+        if (foreground_mode)
+            fprintf(stderr, "keystatd: no existing stats file, starting fresh (%s)\n", stats_file);
+        return;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return;
+    }
+    long len = ftell(fp);
+    if (len <= 0 || len > (long)(8 * 1024 * 1024)) {
+        fclose(fp);
+        return;
+    }
+    if (fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return;
+    }
+
+    char *buf = malloc((size_t)len + 1);
+    if (!buf) {
+        fclose(fp);
+        return;
+    }
+    if (fread(buf, 1, (size_t)len, fp) != (size_t)len) {
+        free(buf);
+        fclose(fp);
+        return;
+    }
     fclose(fp);
+    buf[len] = '\0';
+
+    const char *keys_label = strstr(buf, "\"keys\"");
+    if (!keys_label) {
+        free(buf);
+        if (foreground_mode)
+            fprintf(stderr, "keystatd: stats file has no \"keys\" field, starting fresh\n");
+        return;
+    }
+    const char *open_brace = strchr(keys_label, '{');
+    if (!open_brace) {
+        free(buf);
+        if (foreground_mode)
+            fprintf(stderr, "keystatd: malformed stats JSON, starting fresh\n");
+        return;
+    }
+    const char *close_brace = json_object_end(open_brace);
+    if (!close_brace) {
+        free(buf);
+        if (foreground_mode)
+            fprintf(stderr, "keystatd: unclosed \"keys\" object, starting fresh\n");
+        return;
+    }
+
+    int loaded = 0;
+    for (const char *p = open_brace + 1; p < close_brace;) {
+        while (p < close_brace && (isspace((unsigned char)*p) || *p == ','))
+            p++;
+        if (p >= close_brace)
+            break;
+        if (*p != '"') {
+            p++;
+            continue;
+        }
+        p++;
+        char name[128];
+        size_t ni = 0;
+        while (p < close_brace && *p != '"' && ni < sizeof(name) - 1) {
+            if (*p == '\\' && p + 1 < close_brace)
+                p++;
+            name[ni++] = *p++;
+        }
+        name[ni] = '\0';
+        if (p >= close_brace || *p != '"') {
+            p++;
+            continue;
+        }
+        p++;
+        while (p < close_brace && isspace((unsigned char)*p))
+            p++;
+        if (p >= close_brace || *p != ':') {
+            p++;
+            continue;
+        }
+        p++;
+        while (p < close_brace && isspace((unsigned char)*p))
+            p++;
+        char *endptr = NULL;
+        long long c = strtoll(p, &endptr, 10);
+        if (!endptr || endptr == p) {
+            p++;
+            continue;
+        }
+        p = endptr;
+        int key_code = libevdev_event_code_from_name(EV_KEY, name);
+        if (key_code >= 0 && key_code < MAX_KEYS) {
+            if (c < 0)
+                c = 0;
+            if (c > INT_MAX)
+                c = INT_MAX;
+            key_counts[key_code] = (int)c;
+            loaded++;
+        }
+    }
+    free(buf);
+
+    if (foreground_mode && loaded > 0)
+        fprintf(stderr, "keystatd: loaded %d keys from %s (continuing counts)\n", loaded, stats_file);
 }
 
 static void save_stats() {
@@ -189,13 +307,14 @@ static void scan_devices(device_t *devices, int *device_count) {
 
 int main(int argc, char *argv[]) {
     int daemon_mode = 1;
-    
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0) {
             daemon_mode = 0;
         }
     }
-    
+    foreground_mode = !daemon_mode;
+
     if (daemon_mode) {
         create_daemon();
     }
