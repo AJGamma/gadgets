@@ -7,9 +7,9 @@ from pypdf import PdfReader, PdfWriter
 # 1. 原始小PDF所在的目录
 SOURCE_DIR = "source_pdfs"
 # 2. 合并后输出的PDF文件路径
-MERGED_FILE = "merged.pdf"
+MERGED_FILE = "papers.pdf"
 # 3. 翻译完成后的合并PDF文件路径
-TRANSLATED_MERGED_FILE = "translated_merged.pdf"
+TRANSLATED_MERGED_FILE = "in.pdf"
 # 4. 拆分后输出文件的保存目录
 OUTPUT_DIR = "output_pdfs"
 # =================================================
