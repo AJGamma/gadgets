@@ -9,3 +9,4 @@ python/arxivgetter/links.txt
 python/translatemerge/source_pdfs
 python/translatemerge/in.pdf
 python/translatemerge/papers.pdf
+*.png
